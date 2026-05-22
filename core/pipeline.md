@@ -26,7 +26,7 @@ Stage 2 是可选阶段。用户只要求代码审计时，不要强制动态验
 | --- | --- | --- | --- |
 | `quick` | 快速检查、变更验证 | T1 + 高危 sink | 只验证 high/critical |
 | `standard` | 默认日常审计 | T1+T2 + 完整 sink 预扫描 | 验证所有可验证 high/critical，抽样 medium |
-| `deep` | 上线前或高敏项目 | T1+T2+T3 + 完整 Agent | 验证所有 finding，失败时必须尝试绕过 |
+| `deep` | 上线前或高敏项目 | T1+T2+T3 + 完整 Agent | 验证所有可验证 high/critical，抽样 medium，失败时必须尝试绕过 |
 
 ## Stage 1: 静态代码审计
 
@@ -245,54 +245,24 @@ workDir/dynamic-verified.json
 - 静态 only 路径：`workDir/static-merged.json`
 - 带验证路径：`workDir/dynamic-verified.json`
 
-### 步骤
-
-1. 根据是否执行 Stage 2 选择输入文件：
-
-```text
-REPORT_INPUT=workDir/static-merged.json
-# 或 REPORT_INPUT=workDir/dynamic-verified.json
-```
-
-2. 运行 schema 和一致性校验。静态 only 报告使用 draft 模式，因为 PoC 允许为空：
+### 执行脚本输出报告方法
+#### 如果只执行了 Stage 1 静态审计
+静态-only示例，生成html以及word报告
 
 ```bash
-python {SKILL_ROOT}/scripts/validate_report.py \
-  {REPORT_INPUT} \
-  --mode draft
+python {SKILL_ROOT}/scripts/vibe_csa_html.py -i workDir/static-merged.json -o workDir/reports/vibe-csa-static-{YYYYMMDD-HHmmss}.html
+python {SKILL_ROOT}/scripts/vibe_csa_report.py -i workDir/static-merged.json -o workDir/reports/vibe-csa-static-{YYYYMMDD-HHmmss}.docx
+
 ```
 
-带动态验证报告使用 final 模式：
+#### 如果执行了静态审计和动态漏洞验证
+
+动态漏洞验证示例，生成html以及word报告
 
 ```bash
-python {SKILL_ROOT}/scripts/validate_report.py \
-  workDir/dynamic-verified.json \
-  --mode final
+python {SKILL_ROOT}/scripts/vibe_csa_html.py -i workDir/dynamic-verified.json -o workDir/reports/vibe-csa-dynamic-{YYYYMMDD-HHmmss}.html
+python {SKILL_ROOT}/scripts/vibe_csa_report.py -i workDir/dynamic-verified.json -o workDir/reports/vibe-csa-dynamic-{YYYYMMDD-HHmmss}.docx
 ```
-
-3. 生成最终报告：
-
-```bash
-python {SKILL_ROOT}/scripts/generate_report.py \
-  --input {REPORT_INPUT}
-```
-
-### Stage 3 输出
-
-```text
-workDir/reports/vibe-csa-{YYYYMMDD-HHmmss}.json
-```
-
-### Stage 3 门禁
-
-- schema 校验通过。
-- 静态 only 报告允许 `poc.result="pending"`、`poc.steps=[]`。
-- 静态 only 报告中的 finding 必须保持 `status="HYPOTHESIS"`、`finding_class="code_only"`。
-- 带验证报告中，`poc.result="success"` 的 finding 必须有响应证据。
-- 带验证报告中，`CONFIRMED` 必须是 `runtime_verified`。
-- `code_only` 不能标记为 `CONFIRMED`。
-- 最终报告必须由脚本生成。
-
 ## 状态传递
 
 每个阶段结束更新 `workDir/audit-state.json`：

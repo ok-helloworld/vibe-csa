@@ -103,7 +103,7 @@ pip install -r vibe-csa/scripts/requirements.txt
 ```text
 使用 `vibe-csa` 技能，对当前目录下的源码做静态审计，参考项目语言插件规则，按`multi-agent.md`中的推荐agent分工，每个agent独立生成 `workDir/agent-results/*.json`(格式需严格参考`references/agent-result-example.json`样例)， 最后使用`merge_static_results.py`脚本，汇总multi-agent的结果，生成`workDir/static-merged.json`
 
-将最终JSON报告`vibe-csa-{YYYYMMDD-HHmmss}.json`生成 HTML 和 Word 报告，使用 `scripts/vibe_csa_html.py` 和 `scripts/vibe_csa_report.py` 脚本导出稳定的报告结果。
+将最终JSON报告生成 HTML 和 Word 报告：使用 `scripts/vibe_csa_html.py` 和 `scripts/vibe_csa_report.py` 脚本导出稳定的报告结果。
 ```
 
 ### 静态审计+动态漏洞验证提示词
@@ -121,20 +121,24 @@ pip install -r vibe-csa/scripts/requirements.txt
 账号：admin
 密码：123456
 
-安全测试要求：允许对测试过程中自己创建的数据、自己上传的文件、自己插入的记录做删除、更新、清理操作，以便验证删除/编辑/恢复/回收类漏洞；禁止对原始业务数据、他人数据、生产数据做破坏性操作。允许上传文件进行文件上传测试。
+安全测试铁律：允许对测试过程中自己创建的数据、自己上传的文件、自己插入的记录做删除、更新、清理操作，以便验证删除/编辑/恢复/回收类漏洞；禁止对原始业务数据、他人数据、生产数据做破坏性操作。允许上传文件进行文件上传测试。
 
 阶段三：报告生成
-将最终JSON报告`vibe-csa-{YYYYMMDD-HHmmss}.json`生成 HTML 和 Word 报告，使用 `scripts/vibe_csa_html.py` 和 `scripts/vibe_csa_report.py` 脚本导出稳定的报告结果。
+将最终JSON报告生成 HTML 和 Word 报告：使用 `scripts/vibe_csa_html.py` 和 `scripts/vibe_csa_report.py` 脚本导出稳定的报告结果。
 
 ```
 
 ## 报告生成说明
 
 输出结果在`workDir`工作目录，可以使用以下命令手工执行报表生成：
-示例：
+静态审计 HTML 报告示例：
 ```bash
-python vibe_csa_html.py -i workDir/reports/vibe-csa-{YYYYMMDD-HHmmss}.json -o workDir/reports/vibe-csa-final.html
-python vibe_csa_report.py -i workDir/reports/vibe-csa-{YYYYMMDD-HHmmss}.json -o workDir/reports/vibe-csa-final.docx
+python scripts/vibe_csa_html.py -i workDir/static-merged.json -o workDir/reports/vibe-csa-static-{YYYYMMDD-HHmmss}.html
+```
+
+动态验证 Word 报告示例：
+```bash
+python scripts/vibe_csa_report.py -i workDir/dynamic-verified.json -o workDir/reports/vibe-csa-dynamic-{YYYYMMDD-HHmmss}.docx
 ```
 
 ## 流程示意图

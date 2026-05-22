@@ -66,8 +66,8 @@ Stage 2 漏洞动态验证（可选）
 
 Stage 3 报告生成
   输入: workDir/static-merged.json 或 workDir/dynamic-verified.json
-  动作: schema 校验、一致性校验、汇总统计、排序
-  输出: workDir/reports/vibe-csa-{YYYYMMDD-HHmmss}.json
+  动作: 执行报告生成脚本
+  输出: HTML 和 Word 报告
 ```
 
 其中 Stage 1 重点约束静态 finding 结构，Stage 2 重点约束运行时证据写回与状态一致性。
@@ -90,7 +90,7 @@ Stage 3 报告生成
 
 #### Stage 1.1 multi Agent
 - 必须根据 `{SKILL_ROOT}/core/multi-agent.md` 创建多 Agent 独立分工
-- 每个 Agent 开始审计前，须使用 `scripts/prepare_static_aegnt_result.py` 生成静态审计骨架文件，脚本运行示例：`python {SKILL_ROOT}/scripts/prepare_static_aegnt_result.py {agent_name}`，骨架文件会保存至 `workDir/agent-results/*.json`
+- 每个 Agent 开始审计前，须使用 `scripts/prepare_static_aegnt_result.py` 生成静态审计骨架文件，脚本运行示例：`python {SKILL_ROOT}/scripts/prepare_static_aegnt_result.py agent-{agentname}.json`，骨架文件会保存至 `workDir/agent-results/*.json`，比如 `static-deser`agent，其中`agent-{agentname}.json` 为 `agent-static-deser.json`
 - 铁律：每个 Agent 需要将各自的骨架文件的所有字段全部回填（需要基于审计结果回填，不得回填虚假数据），骨架文件字段意义可参考 `references/agent-result-example.json` 样例
 - `findings`字段可结合实际漏洞审计结果扩展多条，漏洞标题、中文漏洞类型、bug 分类标签、`vuln_type` 优先从 `references/bug-categories.md` 选择
 - 每个 Agent 须遵循 `core/coverage-gate.md`，计算代码审计覆盖率，然后将结果更新至 `workDir/agent-results/*.json` 的 `coverage_summary`字段
@@ -148,8 +148,7 @@ python {SKILL_ROOT}/scripts/merge_static_results.py \
    - 单个 finding 文件完成所有回填之后，需要检查避免存在json文件格式错误
 
 4. 最后，汇总所有漏洞验证结果，生成 `workDir/dynamic-verified.json`
-   - 先复制 `workDir/static-merged.json` 为 `workDir/dynamic-verified.json`，接着修改 `workDir/dynamic-verified.json` 文件 `stage` 字段的值为 `dynamic_verification`
-   - 再执行脚本，插入 poc 验证详情，脚本举例：`python {SKILL_ROOT}/scripts/verify_vuln.py --merge workDir/findings/*.poc.json --into workDir/dynamic-verified.json`
+   - 直接执行 `verify_vuln.py` 脚本汇总所有漏洞验证结果,脚本举例：`python {SKILL_ROOT}/scripts/verify_vuln.py --merge workDir/findings/*.poc.json --into workDir/dynamic-verified.json`
 
 #### 2.3 硬约束
 - Stage 2 只能补充运行时证据，不得重写 Stage 1 的静态基线字段结构
@@ -159,36 +158,23 @@ python {SKILL_ROOT}/scripts/merge_static_results.py \
 
 ### Stage 3 报告生成
 
-#### 步骤1 检测与生成最终json报告
-使用脚本 `generate_report.py` 检查 Stage 1 或 Stage 2 阶段的最终json报告的内容格式，并生成 Stage 3 最终的json报告：`vibe-csa-{YYYYMMDD-HHmmss}.json`
-
-静态-only示例：
+#### 如果只执行了 Stage 1 静态审计
+静态-only示例，生成html以及word报告
 
 ```bash
-python {SKILL_ROOT}/scripts/generate_report.py --input workDir/static-merged.json --output workDir/reports/vibe-csa-{YYYYMMDD-HHmmss}.json
+python {SKILL_ROOT}/scripts/vibe_csa_html.py -i workDir/static-merged.json -o workDir/reports/vibe-csa-static-{YYYYMMDD-HHmmss}.html
+python {SKILL_ROOT}/scripts/vibe_csa_report.py -i workDir/static-merged.json -o workDir/reports/vibe-csa-static-{YYYYMMDD-HHmmss}.docx
+
 ```
 
-带动态验证示例：
+#### 如果执行了静态审计和动态漏洞验证
+
+动态漏洞验证示例，生成html以及word报告
 
 ```bash
-python {SKILL_ROOT}/scripts/generate_report.py --input workDir/dynamic-verified.json --output workDir/reports/vibe-csa-{YYYYMMDD-HHmmss}.json
+python {SKILL_ROOT}/scripts/vibe_csa_html.py -i workDir/dynamic-verified.json -o workDir/reports/vibe-csa-dynamic-{YYYYMMDD-HHmmss}.html
+python {SKILL_ROOT}/scripts/vibe_csa_report.py -i workDir/dynamic-verified.json -o workDir/reports/vibe-csa-dynamic-{YYYYMMDD-HHmmss}.docx
 ```
-
-只允许脚本生成报告。不要手写最终 `vibe-csa-{timestamp}.json`
-
-#### 步骤2 生成最终HTML与Word报告
-
-只允许脚本生成最终报告
-- `vibe_csa_html.py` 负责生成HTML
-- `vibe_csa_report.py` 负责生成Word
-- 生成 Word 报告时可额外传入 `-l <logo.png>`
-
-脚本运行示例：
-```bash
-python {SKILL_ROOT}/scripts/vibe_csa_html.py -i workDir/reports/vibe-csa-{timestamp}.json -o workDir/reports/vibe-csa-final.html
-python {SKILL_ROOT}/scripts/vibe_csa_report.py -i workDir/reports/vibe-csa-{timestamp}.json -o workDir/reports/vibe-csa-final.docx
-```
-
 
 ## 状态文件
 

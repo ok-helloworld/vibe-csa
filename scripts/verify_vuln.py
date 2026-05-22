@@ -1083,6 +1083,56 @@ def merge_subfiles(subfile_paths: list[Path], main_draft_path: Path,
     return merged
 
 
+def ensure_dynamic_verified_draft(main_draft_path: Path, verbose: bool = False) -> bool:
+    """Ensure merge target exists and is marked as Stage 2 output.
+
+    If `main_draft_path` does not exist, bootstrap it from
+    `<parent>/static-merged.json`. Whether bootstrapped or pre-existing, force
+    `audit.stage = "dynamic_verification"` before merge.
+    """
+    source_static_path = main_draft_path.parent / "static-merged.json"
+
+    if not main_draft_path.exists():
+        if not source_static_path.exists():
+            print(
+                "[merge] main draft not found and bootstrap source is missing: "
+                f"{source_static_path}",
+                file=sys.stderr,
+            )
+            return False
+        try:
+            data = json.loads(source_static_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            print(f"[merge] failed to parse bootstrap source: {e}", file=sys.stderr)
+            return False
+        if verbose:
+            print(f"[merge] bootstrapping {main_draft_path} from {source_static_path}")
+    else:
+        try:
+            data = json.loads(main_draft_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            print(f"[merge] failed to parse main draft: {e}", file=sys.stderr)
+            return False
+        if verbose:
+            print(f"[merge] updating existing draft: {main_draft_path}")
+
+    audit = data.setdefault("audit", {})
+    previous_stage = audit.get("stage")
+    audit["stage"] = "dynamic_verification"
+
+    main_draft_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = main_draft_path.with_suffix(main_draft_path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(main_draft_path)
+
+    if verbose:
+        print(
+            "[merge] ensured dynamic draft: "
+            f"stage {previous_stage!r} -> 'dynamic_verification'"
+        )
+    return True
+
+
 # ─── 主循环 ──────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -1125,6 +1175,9 @@ def main() -> None:
         if not args.into:
             print("--merge requires --into <main-draft.json>", file=sys.stderr)
             sys.exit(1)
+        main_draft_path = Path(args.into)
+        if not ensure_dynamic_verified_draft(main_draft_path, args.verbose):
+            sys.exit(1)
         # Expand globs (the shell may not have done it on Windows)
         import glob as _glob
         paths: list[Path] = []
@@ -1134,7 +1187,7 @@ def main() -> None:
                 paths.extend(Path(m) for m in matched)
             else:
                 paths.append(Path(pattern))
-        merged = merge_subfiles(paths, Path(args.into), args.verbose)
+        merged = merge_subfiles(paths, main_draft_path, args.verbose)
         sys.exit(0 if merged > 0 else 1)
 
     # ── Verify mode (default) ──

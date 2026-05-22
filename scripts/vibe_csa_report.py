@@ -419,10 +419,16 @@ def generate_report(data, logo_path, output_path):
     add_heading_custom(doc, '一、执行摘要', level=1)
 
     summary = data['audit']['summary']
+    findings = data['findings']
+    
+    # 动态统计已确认和假设性漏洞数量（不依赖summary字段）
+    confirmed_count = sum(1 for f in findings if f.get('status') == 'CONFIRMED')
+    hypothesis_count = sum(1 for f in findings if f.get('status') == 'HYPOTHESIS')
+    
     add_paragraph_custom(doc,
         f"本次安全审计共发现 {summary['total']} 个安全漏洞，其中严重漏洞 {summary['critical']} 个、"
         f"高危漏洞 {summary['high']} 个、中危漏洞 {summary['medium']} 个、低危漏洞 {summary['low']} 个。"
-        f"已确认漏洞 {summary['confirmed']} 个，假设性发现 {summary['hypothesis']} 个。")
+        f"已确认漏洞 {confirmed_count} 个，假设性发现 {hypothesis_count} 个。")
 
     # 风险等级统计表格
     add_heading_custom(doc, '1.1 风险等级统计', level=2, color=COLORS['text_gray'])

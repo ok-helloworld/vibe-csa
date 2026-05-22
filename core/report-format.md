@@ -1,7 +1,5 @@
 # 报告格式
 
-vibe-csa 的标准输出为 `vibe-csa-{YYYYMMDD-HHmmss}.json`，结构如下。文件名中的时间戳为 `generate_report.py` 执行时刻。
-
 ## 整体结构
 
 ```
@@ -113,7 +111,7 @@ root
 | `skipped` | 可为空 | 如有 step 则必填 | 无需填写 | 不需要 |
 | `auth_failed` | 建议 ≥ 1 | 建议填写认证探测 request | 建议填写 | 不需要 |
 
-> **关键**：除 `skipped` 外，所有 result 都必须包含完整的 HTTP 请求和响应。`generate_report.py` 的 consistency_checks 会将这些作为 **BLOCKING errors** 拦截，缺失时报告生成失败。
+> **关键**：除 `skipped` 外，所有 result 都必须包含完整的 HTTP 请求和响应。
 
 ### 2.5 remediation — 整改建议
 
@@ -330,42 +328,3 @@ root
 - `data_flow` 对简单漏洞（硬编码密钥、不安全配置）可省略
 - 所有日期使用 `YYYY-MM-DD` 格式
 - 漏洞按 severity 降序排列（critical → high → medium → low）
-
-## 六、报告生成与验证（强制流程）
-
-**最终报告必须通过 `generate_report.py` 生成，写入当前工作目录，文件名格式 `vibe-csa-{YYYYMMDD-HHmmss}.json`。禁止 LLM 直接用 Write 工具写最终报告。**
-
-### 标准生成流程
-
-**Step 1**：LLM 将全部审计结果写入草稿文件 `vibe-csa-draft.json`（无需填写 summary，脚本自动计算）
-
-**Step 2**：运行生成脚本
-
-```bash
-python {SKILL_ROOT}/scripts/generate_report.py --input vibe-csa-draft.json
-```
-
-脚本自动执行：
-- 计算 summary 统计（total / critical / high / medium / low / fixed / open）
-- findings 按 severity 降序排列
-- 原子写入 `./vibe-csa-{YYYYMMDD-HHmmss}.json`（当前工作目录，时间戳为生成时刻）
-
-**Step 3**：根据输出决策
-
-| 脚本输出 | 处理 |
-|---------|------|
-| 成功摘要（含时间戳文件路径） | 报告完成，读取输出确认 findings 数量和路径 |
-| `[FAIL] Schema 校验失败` | 按错误路径修正草稿，重新运行，最多 3 轮 |
-| `[WARN] 一致性检查` | 评估是否需要补充数据（不阻止生成） |
-
-**Step 4（可选验证）**：
-
-```bash
-python {SKILL_ROOT}/scripts/validate_report.py vibe-csa-{timestamp}.json
-```
-
-输出 `{"status": "PASS"}` 表示通过。
-
-### 3 轮重试后仍失败
-
-在对话中标注 `VALIDATION_FAILED`，列出未修复的错误，输出草稿供用户检查。

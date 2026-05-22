@@ -112,7 +112,7 @@ def resp_status_class(status):
 # COVER  (全新布局，无品牌字样)
 # ──────────────────────────────────────────────
 
-def build_cover(audit):
+def build_cover(audit, findings):
     stage_map = {"static_audit":"静态代码审计","dynamic_verification":"动态漏洞验证","report":"最终安全报告"}
     mode_map  = {"quick":"快速扫描","standard":"标准扫描","deep":"深度扫描"}
     scope_map = {"full":"全量审计","partial":"部分审计","incremental":"增量审计"}
@@ -132,12 +132,35 @@ def build_cover(audit):
     end   = audit.get("audit_date",{}).get("end","—")
     now   = datetime.now().strftime("%Y-%m-%d")
 
+    # 从实际findings动态计算统计数据
     s = audit.get("summary",{})
-    total = s.get("total",0)
-    crit  = s.get("critical",0)
-    high  = s.get("high",0)
-    med   = s.get("medium",0)
-    low   = s.get("low",0)
+    total = len(findings) if findings else s.get("total", 0)
+    
+    # 按严重性统计
+    sev_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    for f in findings:
+        sev = f.get("severity", "low").lower()
+        if sev in sev_counts:
+            sev_counts[sev] += 1
+    
+    crit = sev_counts["critical"]
+    high = sev_counts["high"]
+    med = sev_counts["medium"]
+    low = sev_counts["low"]
+    
+    # 按状态统计
+    confirmed = sum(1 for f in findings if f.get("status") == "CONFIRMED")
+    hypothesis = sum(1 for f in findings if f.get("status") == "HYPOTHESIS")
+    
+    # 动态验证统计
+    runtime_verified = 0
+    code_only = 0
+    for f in findings:
+        dyn = f.get("dynamic_verification", {})
+        if dyn.get("state") == "verified":
+            runtime_verified += 1
+        else:
+            code_only += 1
 
     # donut chart data
     donut_segments = []
@@ -208,10 +231,10 @@ def build_cover(audit):
       <div class="cover-sev-legend">{sev_items}</div>
     </div>
     <div class="cover-stat-row">
-      <div class="cstat"><span class="cstat-v">{s.get("confirmed",0)}</span><span class="cstat-l">已确认</span></div>
-      <div class="cstat"><span class="cstat-v">{s.get("hypothesis",0)}</span><span class="cstat-l">待验证</span></div>
-      <div class="cstat"><span class="cstat-v">{s.get("runtime_verified",0)}</span><span class="cstat-l">动态验证</span></div>
-      <div class="cstat"><span class="cstat-v">{s.get("code_only",0)}</span><span class="cstat-l">仅代码级</span></div>
+      <div class="cstat"><span class="cstat-v">{confirmed}</span><span class="cstat-l">已确认</span></div>
+      <div class="cstat"><span class="cstat-v">{hypothesis}</span><span class="cstat-l">待验证</span></div>
+      <div class="cstat"><span class="cstat-v">{runtime_verified}</span><span class="cstat-l">动态验证</span></div>
+      <div class="cstat"><span class="cstat-v">{code_only}</span><span class="cstat-l">仅代码级</span></div>
     </div>
   </div>
 </div>"""
@@ -221,16 +244,38 @@ def build_cover(audit):
 # EXECUTIVE SUMMARY
 # ──────────────────────────────────────────────
 
-def build_summary(audit):
-    s   = audit.get("summary",{})
-    cov = audit.get("coverage_summary",{})
-    total = s.get("total",0)
+def build_summary(audit, findings):
+    # 从实际findings动态计算统计数据
+    s = audit.get("summary", {})
+    cov = audit.get("coverage_summary", {})
+    total = len(findings) if findings else s.get("total", 0)
+    
+    # 按严重性统计
+    sev_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    for f in findings:
+        sev = f.get("severity", "low").lower()
+        if sev in sev_counts:
+            sev_counts[sev] += 1
+    
+    # 按状态统计
+    confirmed = sum(1 for f in findings if f.get("status") == "CONFIRMED")
+    hypothesis = sum(1 for f in findings if f.get("status") == "HYPOTHESIS")
+    
+    # 动态验证统计
+    runtime_verified = 0
+    unverified = 0
+    for f in findings:
+        dyn = f.get("dynamic_verification", {})
+        if dyn.get("state") == "verified":
+            runtime_verified += 1
+        else:
+            unverified += 1
 
     # severity bars
     sev_bars = ""
     for sev, cls, lb in [("critical","sev-critical","严重"),("high","sev-high","高危"),
                           ("medium","sev-medium","中危"),("low","sev-low","低危")]:
-        cnt = s.get(sev, 0)
+        cnt = sev_counts[sev]
         pct = int(cnt / total * 100) if total else 0
         sev_bars += f"""<div class="sb-row">
           <span class="sb-label {cls}-text">{lb}</span>
@@ -289,10 +334,10 @@ def build_summary(audit):
       <div class="sumcard">
         <div class="sumcard-title">发现状态概览</div>
         <div class="status-overview">
-          <div class="so-item so-open"><span class="so-val">{s.get("open",0)}</span><span class="so-lbl">待处理</span></div>
-          <div class="so-item so-unverified"><span class="so-val">{s.get("unverified",0)}</span><span class="so-lbl">未验证</span></div>
-          <div class="so-item so-confirmed"><span class="so-val">{s.get("confirmed",0)}</span><span class="so-lbl">已确认</span></div>
-          <div class="so-item so-rv"><span class="so-val">{s.get("runtime_verified",0)}</span><span class="so-lbl">动态验证</span></div>
+          <div class="so-item so-open"><span class="so-val">{0}</span><span class="so-lbl">待处理</span></div>
+          <div class="so-item so-unverified"><span class="so-val">{unverified}</span><span class="so-lbl">未验证</span></div>
+          <div class="so-item so-confirmed"><span class="so-val">{confirmed}</span><span class="so-lbl">已确认</span></div>
+          <div class="so-item so-rv"><span class="so-val">{runtime_verified}</span><span class="so-lbl">动态验证</span></div>
         </div>
       </div>
     </div>
@@ -458,11 +503,18 @@ def build_finding(f, idx, audit_stage="static_audit"):
     # ── Dynamic verification
     dv_state = dyn.get("state","not_started")
     final_ev = dyn.get("final_evidence",{})
-    dv_snips = "".join([f"""<div class="dv-snip {strength_class(sn.get('strength','L0'))}">
-      <span class="dvsn-step">Step {sn.get('step','')}</span>
-      <span class="dvsn-type">{e(sn.get('signature_type',''))}</span>
-      <code>{e(sn.get('snippet',''))}</code>
-    </div>""" for sn in final_ev.get("snippets",[])])
+    _snippets = final_ev.get("snippets",[])
+    # Handle both structured (dict) and flat (string) snippet formats
+    if _snippets and isinstance(_snippets[0], str):
+        dv_snips = "".join([f"""<div class="dv-snip ev-l0">
+          <code>{e(sn)}</code>
+        </div>""" for sn in _snippets])
+    else:
+        dv_snips = "".join([f"""<div class="dv-snip {strength_class(sn.get('strength','L0'))}">
+          <span class="dvsn-step">Step {sn.get('step','')}</span>
+          <span class="dvsn-type">{e(sn.get('signature_type',''))}</span>
+          <code>{e(sn.get('snippet',''))}</code>
+        </div>""" for sn in _snippets])
 
     attempts_html = "".join([f"""<div class="att-row">
       <span class="att-num">#{att.get('attempt','')}</span>
@@ -481,6 +533,14 @@ def build_finding(f, idx, audit_stage="static_audit"):
             <div class="fix-after"><span class="fix-lbl">代码整改参考建议</span><code>{e(fix.get("after",""))}</code></div>
           </div>
         </div>"""
+
+    # 清理snippet中的行号前缀（如"L18: "）
+    raw_snippet = loc.get("snippet", "")
+    if raw_snippet:
+        import re
+        cleaned_snippet = re.sub(r'^L\d+:\s*', '', raw_snippet, flags=re.MULTILINE)
+    else:
+        cleaned_snippet = ""
 
     as_items = "".join([
         f'<div class="as-item"><span class="as-k">{e(k)}</span><span class="as-v">{e(v)}</span></div>'
@@ -541,7 +601,7 @@ def build_finding(f, idx, audit_stage="static_audit"):
               <div class="loc-row"><span class="lk">方法</span><code>{e(loc.get("http_method","—"))}</code></div>
             </div>
             <h4 class="ph">关键代码片段</h4>
-            <pre class="snippet">{e(loc.get("snippet",""))}</pre>
+            <pre class="snippet">{e(cleaned_snippet)}</pre>
             <h4 class="ph">安全控制措施</h4>
             {ctrl_html if ctrl_html else '<p class="muted">无</p>'}
           </div>
@@ -808,17 +868,18 @@ body {
 
 /* ── PANEL CONTENT ── */
 .p2col  { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+.p2col > div { min-width:0; }
 .ph     { font-size:12px; font-weight:700; color:var(--navy); letter-spacing:.06em; text-transform:uppercase; margin:14px 0 7px; }
 .ph:first-child { margin-top:0; }
 .pdesc  { font-size:13.5px; color:var(--text); line-height:1.75; }
 .pre-cond { padding-left:16px; font-size:13px; color:var(--text); line-height:1.85; }
 .muted  { color:var(--text3); font-style:italic; font-size:13px; }
 
-.loc-card { background:var(--surf2); border:1px solid var(--border); border-radius:8px; padding:12px 14px; display:flex; flex-direction:column; gap:6px; }
+.loc-card { background:var(--surf2); border:1px solid var(--border); border-radius:8px; padding:12px 14px; display:flex; flex-direction:column; gap:6px; width:100%; }
 .loc-row  { display:flex; align-items:baseline; gap:8px; font-size:12.5px; }
-.lk       { color:var(--text3); font-weight:600; min-width:34px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
-.loc-row code { font-family:monospace; color:var(--navy); font-size:12px; word-break:break-all; }
-.snippet  { background:#1e3a5f; color:#a8d8e4; font-family:monospace; font-size:12px; padding:10px 14px; border-radius:7px; overflow-x:auto; border-left:3px solid var(--teal); line-height:1.6; }
+.lk       { color:var(--text3); font-weight:600; width:34px; flex-shrink:0; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+.loc-row code { font-family:monospace; color:var(--navy); font-size:12px; word-break:break-all; flex:1; min-width:0; }
+.snippet  { background:#1e3a5f; color:#a8d8e4; font-family:monospace; font-size:12px; padding:10px 14px; border-radius:7px; overflow-x:auto; border-left:3px solid var(--teal); line-height:1.6; width:100%; }
 
 /* flow */
 .flow-chain { display:flex; flex-direction:column; gap:3px; margin:8px 0; }
@@ -1049,8 +1110,8 @@ def build_html(data):
 </nav>
 
 <div class="page">
-  {build_cover(audit)}
-  {build_summary(audit)}
+  {build_cover(audit, findings)}
+  {build_summary(audit, findings)}
   {build_toc(findings)}
 
   <section class="sec" id="findings">

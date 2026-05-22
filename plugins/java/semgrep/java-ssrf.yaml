@@ -1,0 +1,129 @@
+rules:
+  # ============================================
+  # P1 - SSRF (Server-Side Request Forgery)
+  # ============================================
+  
+  - id: java-ssrf-url-constructor
+    patterns:
+      - pattern: new URL($VAR)
+      - pattern-not: new URL("...")
+    message: "检测到使用变量构造 URL 对象，存在 SSRF 风险。请验证 URL 是否来自白名单。"
+    severity: ERROR
+    languages: [java]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      owasp: "A10:2021 Server-Side Request Forgery"
+      references:
+        - https://owasp.org/www-community/attacks/Server_Side_Request_Forgery
+
+  - id: java-ssrf-httpurlconnection
+    patterns:
+      - pattern: (new URL($VAR)).openConnection()
+      - pattern-not: (new URL("...")).openConnection()
+    message: "检测到使用变量创建 HttpURLConnection，存在 SSRF 风险。请验证 URL 来源。"
+    severity: ERROR
+    languages: [java]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+
+  - id: java-ssrf-resttemplate-get
+    patterns:
+      - pattern: $REST.getForObject($URL, $CLASS)
+      - pattern-not: $REST.getForObject("...", $CLASS)
+    message: "检测到 RestTemplate.getForObject 使用变量 URL，存在 SSRF 风险。"
+    severity: ERROR
+    languages: [java]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+
+  - id: java-ssrf-resttemplate-post
+    patterns:
+      - pattern: $REST.postForObject($URL, ...)
+      - pattern-not: $REST.postForObject("...", ...)
+    message: "检测到 RestTemplate.postForObject 使用变量 URL，存在 SSRF 风险。"
+    severity: ERROR
+    languages: [java]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+
+  - id: java-ssrf-resttemplate-exchange
+    patterns:
+      - pattern: $REST.exchange($URL, ...)
+      - pattern-not: $REST.exchange("...", ...)
+    message: "检测到 RestTemplate.exchange 使用变量 URL，存在 SSRF 风险。"
+    severity: ERROR
+    languages: [java]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+
+  - id: java-ssrf-webclient
+    patterns:
+      - pattern: $CLIENT.get().uri($VAR)
+      - pattern-not: $CLIENT.get().uri("...")
+    message: "检测到 WebClient 使用变量 URI，存在 SSRF 风险。"
+    severity: ERROR
+    languages: [java]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+
+  - id: java-ssrf-httpclient
+    patterns:
+      - pattern-either:
+        - pattern: $CLIENT.send(HttpRequest.newBuilder().uri(URI.create($VAR))..., ...)
+        - pattern: $CLIENT.send(HttpRequest.newBuilder().uri($VAR)..., ...)
+      - pattern-not: $CLIENT.send(HttpRequest.newBuilder().uri(URI.create("..."))..., ...)
+      - pattern-not: $CLIENT.send(HttpRequest.newBuilder().uri("...")..., ...)
+    message: "HttpClient 发送请求时 URI 为变量。验证 URI 来源是否可信（白名单/host 校验）。"
+    severity: ERROR
+    languages: [java]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+
+  - id: java-ssrf-okhttp
+    patterns:
+      - pattern-either:
+        - pattern: new Request.Builder().url($VAR).build()
+        - pattern: new okhttp3.Request.Builder().url($VAR).build()
+      - pattern-not: new Request.Builder().url("...").build()
+      - pattern-not: new okhttp3.Request.Builder().url("...").build()
+    message: "OkHttp Request 使用变量 URL，存在 SSRF 风险。验证 URL 来源是否可信。"
+    severity: ERROR
+    languages: [java]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+
+  - id: java-ssrf-socket
+    patterns:
+      - pattern-either:
+        - pattern: new Socket($HOST, $PORT)
+        - pattern: new java.net.Socket($HOST, $PORT)
+      - pattern-not: new Socket("...", $PORT)
+      - pattern-not: new java.net.Socket("...", $PORT)
+    message: "Socket 直接连接使用变量 host。若 host 用户可控，攻击者可探测内网或攻击非 HTTP 协议（Redis/MySQL 等）。"
+    severity: WARNING
+    languages: [java]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+
+  - id: java-ssrf-proxy-config
+    patterns:
+      - pattern-either:
+        - pattern: System.setProperty("http.proxyHost", $HOST)
+        - pattern: System.setProperty("https.proxyHost", $HOST)
+      - pattern-not: System.setProperty("http.proxyHost", "...")
+      - pattern-not: System.setProperty("https.proxyHost", "...")
+    message: "通过 System.setProperty 动态设置 HTTP 代理 host。若 host 用户可控，所有后续 HTTP 请求经攻击者代理，可被劫持/篡改/泄露。"
+    severity: ERROR
+    languages: [java]
+    metadata:
+      category: security
+      cwe: "CWE-918"

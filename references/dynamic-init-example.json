@@ -1,0 +1,207 @@
+{
+    "vuln_id": "FINDING-001",
+    "title": "<漏洞名称>",
+    "vuln_type": "<代码执行|文件上传|任意文件删除|SQL注入|XSS|SSRF|认证绕过>",
+    "category": "<injection|ssrf_file|auth|info>",
+    "status": "<HYPOTHESIS|CONFIRMED>",
+    "confidence": "<high|medium|low>",
+    "x_signature_type": "<cmd-exec|upload-marker|file-delete-effect|sql-error|xss-reflection>",
+    "evidence_level": "L0",
+    "finding_class": "code_only",
+    "x_finding_class": "code_only",
+    "impact": "<漏洞利用后的业务影响和潜在升级路径>",
+    "dktss_score": 0.0,
+    "description": "<漏洞描述，包括触发条件、数据流和影响面>",
+    "location": {
+        "file": "<相对路径，如 cms/includes/functions.inc.php>",
+        "line_start": 0,
+        "line_end": 0,
+        "function": "<函数名或代码分支描述>",
+        "route": "<URL路由，如 /admin.php?mode=filemanager>",
+        "http_method": "<GET|POST|GET|POST>",
+        "snippet": "<关键代码片段>"
+    },
+    "analysis": {
+        "source": {
+          "description": "<用户可控数据的来源描述>",
+          "location": "<file:line 范围>",
+          "user_controlled": true,
+          "parameters": ["<参数1>", "<参数2>"]
+        },
+        "sink": {
+          "description": "<危险函数的调用描述>",
+          "location": "<file:line 范围>",
+          "sink_type": "<代码执行|文件写入|文件删除|数据库查询|命令执行>",
+          "dangerous_api": "<eval|copy|unlink|system|query>"
+        },
+        "data_flow": [
+          {
+            "step": 1,
+            "type": "<source|propagation|validation|sink>",
+            "location": "<file:line>",
+            "desc": "<数据流步骤描述>",
+            "code": "<相关代码>"
+          }
+        ],
+        "attack_surface": {
+          "entrypoint": "<攻击入口描述>",
+          "http_method": "<GET|POST>",
+          "route": "<URL路由>",
+          "parameters": ["<参数1>", "<参数2>"],
+          "auth_required": true,
+          "required_role": "<authenticated_admin_user|page editor or admin>",
+          "content_type": "<application/x-www-form-urlencoded|multipart/form-data>"
+        },
+        "preconditions": [
+          "<前置条件1>",
+          "<前置条件2>"
+        ],
+        "security_controls": [
+          {
+            "control": "<安全控制名称>",
+            "location": "<file:line>",
+            "assessment": "<present_effective|present_bypassable|absent>",
+            "bypass_notes": "<绕过说明>"
+          }
+        ],
+        "bypass_strategy": {
+          "feasible": true,
+          "difficulty": "<low|medium|high>",
+          "ideas": [
+            {
+              "technique": "<绕过技术名称>",
+              "payload_hint": "<payload示例>",
+              "reason": "<为什么可行>"
+            }
+          ]
+        },
+        "verification_plan": {
+          "objective": "<动态验证目标>",
+          "steps": [
+            {
+              "step": 1,
+              "action": "<验证步骤动作>",
+              "expected_signal": "<预期结果信号>"
+            }
+          ],
+          "success_criteria": [
+            "<成功标准1>",
+            "<成功标准2>"
+          ]
+        }
+    },
+    "static_evidence": {
+        "agent": "<Agent-Injection|Agent-SSRF-File|Agent-Auth|Agent-Info>",
+        "confidence_reason": "<置信度理由>",
+        "evidence_refs": {
+          "EVID_ENTRY": "<file:line>",
+          "EVID_SOURCE": "<file:line>",
+          "EVID_SINK": "<file:line>"
+        },
+        "reviewed_files": [
+          {
+            "file": "<文件名>",
+            "role": "<entrypoint|source|propagation|sink|control>",
+            "summary": "<审查摘要>"
+          }
+        ],
+        "anti_false_positive": {
+          "checked": [
+            "<已排除的误报场景1>",
+            "<已排除的误报场景2>"
+          ],
+          "notes": "<动态验证注意事项>"
+        }
+    },
+    "dynamic_verification": {
+        "state": "<verified|not_started|failed|partial>",
+        "attempts": [
+            {
+                "attempt": 1,
+                "payload_strategy": "<PoC构造策略>",
+                "request_ref": "poc.steps[0].request",
+                "response_ref": "poc.steps[1].response",
+                "result": "<success|failure>",
+                "evidence_snippet": "<关键证据片段>",
+                "next_action": "<下一步动作>"
+            }
+        ],
+        "final_evidence": {
+            "proof_type": "<command_output|sensitive_data|file_access|none>",
+            "summary": "<最终证据摘要>",
+            "snippets": [
+                {
+                    "step": 1,
+                    "source": "<response._evidence_match|response.body>",
+                    "snippet": "<证据片段>",
+                    "signature_type": "<与 x_signature_type 一致>",
+                    "strength": "<L0|L1|L2|L3>"
+                }
+            ]
+        },
+        "runtime_notes": "<运行验证备注>"
+    },
+    "poc": {
+        "steps": [
+            {
+                "name": "<步骤名称>",
+                "request": {
+                    "method": "<GET|POST>",
+                    "url": "<完整URL>",
+                    "headers": {
+                        "User-Agent": "python-requests/2.32.5",
+                        "Accept-Encoding": "gzip, deflate, br, zstd",
+                        "Accept": "*/*",
+                        "Connection": "keep-alive",
+                        "Cookie": "<SESSION_COOKIE>",
+                        "Content-Type": "<请求Content-Type>"
+                    },
+                    "params": {},
+                    "body": "<请求体>",
+                    "cookies": {
+                        "<cookie_name>": "<cookie_value>"
+                    },
+                    "raw": "<完整原始HTTP请求>"
+                },
+                "response": {
+                    "status": 200,
+                    "headers": {
+                        "Date": "Wed, 20 May 2026 04:44:11 GMT",
+                        "Server": "Apache/2.4.54 (Debian)",
+                        "Content-Type": "text/html; charset=utf-8"
+                    },
+                    "raw": "<完整原始HTTP响应>",
+                    "body": "<响应体内容>",
+                    "body_truncated": false,
+                    "body_full_length": 0,
+                    "redirect_chain": [
+                        {
+                            "url": "<重定向URL>",
+                            "status": 302
+                        }
+                    ],
+                    "_evidence_match": [
+                        {
+                            "type": "<signature_type>",
+                            "snippet": "<匹配到的证据>",
+                            "strength": "<L0|L1|L2|L3>"
+                        }
+                    ]
+                },
+                "step": 1
+            }
+        ],
+        "result": "<success|pending|failure>",
+        "evidence": "<PoC证据描述>",
+        "failure_log": []
+    },
+    "remediation": {
+        "short_term": "<短期修复建议>",
+        "long_term": "<长期修复建议>"
+    },
+    "fix": {
+        "language": "<php|java|python|go|javascript>",
+        "before": "<修复前代码>",
+        "after": "<修复后代码>"
+    }
+}

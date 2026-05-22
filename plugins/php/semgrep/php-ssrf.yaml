@@ -1,0 +1,75 @@
+rules:
+  - id: php-ssrf-001
+    patterns:
+      - pattern: file_get_contents(...)
+      - pattern-not: file_get_contents("...")
+    message: "file_get_contents() with potentially user-controlled path. If path is a URL, this allows SSRF. Validate against a whitelist."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-ssrf-002
+    patterns:
+      - pattern: curl_setopt($CH, CURLOPT_URL, $URL)
+    message: "cURL CURLOPT_URL with potentially user-controlled value. This allows SSRF. Validate the URL."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-ssrf-003
+    patterns:
+      - pattern: fopen(...)
+      - pattern-not: fopen("...", "...")
+    message: "fopen() with potentially user-controlled path. If path is a URL (http://, php://), this allows SSRF."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-ssrf-004
+    patterns:
+      - pattern: fsockopen(...)
+      - pattern-not: fsockopen("...", ...)
+    message: "fsockopen() with potentially user-controlled host. This allows SSRF to internal services."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-ssrf-005
+    patterns:
+      - pattern: new SoapClient(...)
+    message: "SoapClient with potentially user-controlled WSDL URL. This allows SSRF."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-ssrf-006
+    patterns:
+      - pattern: curl_exec(...)
+    message: "curl_exec() called. If the URL was set from user input, this allows SSRF. Ensure URL validation."
+    severity: INFO
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2

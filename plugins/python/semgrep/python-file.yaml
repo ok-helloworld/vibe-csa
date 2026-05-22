@@ -1,0 +1,138 @@
+rules:
+  - id: python-file-001
+    patterns:
+      - pattern: open(...)
+      - pattern-not: open("...")
+      - pattern-not-inside: |
+          open(__file__, ...)
+    message: "open() with potentially user-controlled file path. This allows path traversal. Validate the file path."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-file-002
+    patterns:
+      - pattern: pathlib.Path(...).read_text()
+      - pattern-not: pathlib.Path("...").read_text()
+    message: "Path.read_text() with potentially user-controlled path. This allows path traversal."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-file-003
+    patterns:
+      - pattern: pathlib.Path(...).read_bytes()
+      - pattern-not: pathlib.Path("...").read_bytes()
+    message: "Path.read_bytes() with potentially user-controlled path. This allows path traversal."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-file-004
+    patterns:
+      - pattern: pathlib.Path(...).write_text(...)
+      - pattern-not: pathlib.Path("...").write_text(...)
+    message: "Path.write_text() with potentially user-controlled path. This allows arbitrary file write."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-file-005
+    patterns:
+      - pattern: shutil.copy(...)
+      - pattern-not: shutil.copy("...", ...)
+      - pattern-not: shutil.copy(..., "...")
+    message: "shutil.copy() with potentially user-controlled path. This allows path traversal."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-file-006
+    patterns:
+      - pattern: shutil.move(...)
+      - pattern-not: shutil.move("...", ...)
+      - pattern-not: shutil.move(..., "...")
+    message: "shutil.move() with potentially user-controlled path. This allows path traversal and file overwrite."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-file-007
+    patterns:
+      - pattern: os.path.join(..., $USER_INPUT, ...)
+      - pattern-not: os.path.join(..., "...", ...)
+    message: "os.path.join() with potentially user-controlled path component. If used with open(), this allows path traversal."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-file-008
+    patterns:
+      - pattern: |
+          $VAR = request.FILES[...]
+          ...
+          $VAR.save(...)
+    message: "Django file upload. Validate file type, size, and filename before saving."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-434"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-file-009
+    patterns:
+      - pattern: |
+          $VAR = request.files[...]
+          ...
+          $VAR.save(...)
+    message: "Flask file upload. Validate file type, size, and filename before saving."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-434"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-file-010
+    patterns:
+      - pattern: send_file(...)
+      - pattern-not: send_file("...")
+    message: "send_file() with potentially user-controlled path. This allows arbitrary file read. Validate the file path and restrict to allowed directory."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2

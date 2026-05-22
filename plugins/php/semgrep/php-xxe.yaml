@@ -1,0 +1,50 @@
+rules:
+  - id: php-xxe-001
+    patterns:
+      - pattern: simplexml_load_string(...)
+      - pattern-not: simplexml_load_string("...")
+    message: "simplexml_load_string() with potentially user-controlled XML. This allows XXE. Use LIBXML_NOENT flag carefully or use a safe XML parser."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-611"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-xxe-002
+    patterns:
+      - pattern: new SimpleXMLElement(...)
+      - pattern-not: new SimpleXMLElement("...")
+    message: "SimpleXMLElement with potentially user-controlled XML. This allows XXE."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-611"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-xxe-003
+    patterns:
+      - pattern: $DOC->loadXML(...)
+    message: "DOMDocument::loadXML() with potentially user-controlled XML. This allows XXE. Disable external entity loading: $doc->loadXML($xml, LIBXML_NOENT)."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-611"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-xxe-004
+    patterns:
+      - pattern: $DOC->load(...)
+    message: "DOMDocument::load() with potentially user-controlled file. This allows XXE and file read."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-611"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2

@@ -1,0 +1,83 @@
+rules:
+  - id: python-ssrf-001
+    patterns:
+      - pattern: requests.$METHOD(...)
+      - pattern-not: requests.$METHOD("...")
+      - metavariable-pattern:
+          metavariable: $METHOD
+          pattern-regex: ^(get|post|put|delete|patch|head|options)$
+    message: "HTTP request with potentially user-controlled URL. This allows Server-Side Request Forgery (SSRF). Validate and sanitize the URL against a whitelist."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-ssrf-002
+    patterns:
+      - pattern: urllib.request.urlopen(...)
+      - pattern-not: urllib.request.urlopen("...")
+    message: "urllib.request.urlopen() with potentially user-controlled URL. This allows SSRF. Validate the URL."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-ssrf-003
+    patterns:
+      - pattern: urllib.request.Request(...)
+      - pattern-not: urllib.request.Request("...")
+    message: "urllib.request.Request() with potentially user-controlled URL. This allows SSRF."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-ssrf-004
+    patterns:
+      - pattern: httpx.$METHOD(...)
+      - pattern-not: httpx.$METHOD("...")
+      - metavariable-pattern:
+          metavariable: $METHOD
+          pattern-regex: ^(get|post|put|delete|patch|head|options|Client|AsyncClient)$
+    message: "httpx request with potentially user-controlled URL. This allows SSRF. Validate the URL."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-ssrf-005
+    patterns:
+      - pattern: aiohttp.ClientSession()
+    message: "aiohttp ClientSession created. If URL is user-controlled, this allows SSRF. Validate all URLs."
+    severity: INFO
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-ssrf-006
+    patterns:
+      - pattern: ftplib.FTP().connect(...)
+      - pattern-not: ftplib.FTP().connect("...")
+    message: "FTP connection with potentially user-controlled host. This allows SSRF to internal FTP services."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2

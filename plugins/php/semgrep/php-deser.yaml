@@ -1,0 +1,63 @@
+rules:
+  - id: php-deser-001
+    patterns:
+      - pattern: unserialize(...)
+      - pattern-not: unserialize("...")
+    message: "unserialize() with potentially user-controlled input. This allows PHP Object Injection and potential RCE. Use json_decode() instead."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-deser-002
+    patterns:
+      - pattern-regex: 'phar://'
+    message: "phar:// wrapper detected. Phar deserialization can be triggered even through file operations. Ensure phar wrapper is disabled in php.ini."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-deser-003
+    patterns:
+      - pattern: maybe_unserialize(...)
+    message: "WordPress maybe_unserialize() can trigger PHP Object Injection. Validate input before deserialization."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-deser-004-symfony-serializer
+    patterns:
+      - pattern: $SERIALIZER->deserialize($INPUT, $CLASS, $FORMAT)
+      - pattern-not: $SERIALIZER->deserialize("...", $CLASS, $FORMAT)
+      - pattern-not: $SERIALIZER->deserialize($INPUT, "...", $FORMAT)
+    message: "Symfony Serializer::deserialize() with variable $class. If $class is user-controlled, attacker can instantiate arbitrary classes (POI / RCE via __destruct/__wakeup). Whitelist target classes."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-deser-005-unserialize-allowed-classes
+    patterns:
+      - pattern: unserialize($INPUT, ['allowed_classes' => false])
+    message: "unserialize() with allowed_classes=false is SAFE (objects become __PHP_Incomplete_Class). This rule fires for reference; no action needed."
+    severity: INFO
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2

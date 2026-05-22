@@ -1,0 +1,74 @@
+rules:
+  - id: php-auth-001
+    patterns:
+      - pattern: ldap_search(...)
+      - pattern-not: ldap_search(..., "...", "...")
+    message: "ldap_search() with potentially user-controlled filter. This allows LDAP injection. Sanitize filter with ldap_escape()."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-90"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-auth-002
+    patterns:
+      - pattern: ldap_bind(...)
+      - pattern-not: ldap_bind(..., "...", "...")
+    message: "ldap_bind() with potentially user-controlled DN. This allows LDAP injection."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-90"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-auth-003
+    patterns:
+      - pattern: md5(...)
+    message: "md5() used. If used for password hashing, this is insecure. Use password_hash() with PASSWORD_DEFAULT."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-328"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-auth-004
+    patterns:
+      - pattern: sha1(...)
+    message: "sha1() used. If used for password hashing, this is insecure. Use password_hash() with PASSWORD_DEFAULT."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-328"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-auth-005
+    patterns:
+      - pattern: rand(...)
+    message: "rand() is not cryptographically secure. Use random_int() for security-sensitive operations like token generation."
+    severity: INFO
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-330"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-auth-006
+    patterns:
+      - pattern-regex: 'Route::(get|post|put|delete|any)\([^)]+\)\s*->(name|middleware)\('
+    message: "Laravel route defined. Verify that authentication middleware (auth) is applied to sensitive routes."
+    severity: INFO
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-284"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2

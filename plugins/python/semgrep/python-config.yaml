@@ -1,0 +1,48 @@
+rules:
+  - id: python-config-001
+    patterns:
+      - pattern: DEBUG = True
+    message: "DEBUG mode enabled in production. This exposes sensitive information. Set DEBUG = False for production."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-489"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-config-002
+    patterns:
+      - pattern: ALLOWED_HOSTS = ["*"]
+    message: "ALLOWED_HOSTS allows all hosts. This enables DNS rebinding attacks. Restrict to specific hostnames."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-20"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-config-003
+    patterns:
+      - pattern-regex: 'SECRET_KEY\s*=\s*["\x27][^"\x27]{8,}["\x27]'
+    message: "SECRET_KEY hardcoded in source code. Move to environment variable or secure vault."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-798"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-config-004
+    patterns:
+      - pattern: CORS_ALLOW_ALL_ORIGINS = True
+    message: "CORS allows all origins. This enables cross-origin attacks. Restrict to specific trusted origins."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-948"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2

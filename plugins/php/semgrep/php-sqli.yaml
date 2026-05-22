@@ -1,0 +1,145 @@
+rules:
+  - id: php-sqli-001
+    patterns:
+      - pattern: |
+          $VAR = "...$USER...";
+          ...
+          $PDO->query($VAR);
+    message: "PDO::query() with string containing variable interpolation. This allows SQL injection. Use prepared statements with bindParam()."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-sqli-002
+    patterns:
+      - pattern: |
+          $VAR = "..." . $USER . "...";
+          ...
+          $PDO->exec($VAR);
+    message: "PDO::exec() with string concatenation. This allows SQL injection. Use prepared statements."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-sqli-003
+    patterns:
+      - pattern: |
+          $VAR = "...$_...";
+          ...
+          mysqli_query($CONN, $VAR);
+    message: "mysqli_query() with superglobal interpolation. This allows SQL injection. Use mysqli_prepare() and mysqli_stmt_bind_param()."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-sqli-004
+    patterns:
+      - pattern: DB::raw(...)
+      - pattern-not: DB::raw("...")
+    message: "Laravel DB::raw() with potentially user-controlled input. This allows SQL injection. Use query builder methods instead."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-sqli-005
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $MODEL->whereRaw(...)
+          - pattern: |
+              $MODEL->orderByRaw(...)
+          - pattern: |
+              $MODEL->havingRaw(...)
+    message: "Laravel raw SQL clause (whereRaw/orderByRaw/havingRaw) with potentially user-controlled input. This allows SQL injection."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-sqli-006
+    patterns:
+      - pattern: $wpdb->query($SQL)
+      - pattern-not: $wpdb->query($wpdb->prepare(...))
+      - pattern-not: $wpdb->query("...")
+    message: "WordPress $wpdb->query() with variable SQL but no $wpdb->prepare() wrapper. SQL injection risk — always wrap in $wpdb->prepare()."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-sqli-007
+    patterns:
+      - pattern: $wpdb->get_results($SQL)
+      - pattern-not: $wpdb->get_results($wpdb->prepare(...))
+      - pattern-not: $wpdb->get_results("...")
+    message: "WordPress $wpdb->get_results() with variable but no $wpdb->prepare(). SQL injection risk."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-sqli-008
+    patterns:
+      - pattern: $QUERY->query($SQL)
+      - pattern-not: $QUERY->query("...")
+    message: "ThinkPHP raw query() with variable SQL. Use parameterized queries via where()/whereRaw() with bindings."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-sqli-009-doctrine-where-concat
+    patterns:
+      - pattern: $QB->where($SQL . $VAR)
+    message: "Doctrine QueryBuilder where() with string concatenation. Use ->where('u.name = :name')->setParameter('name', $value) for parameter binding."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-sqli-010-yii2-raw
+    patterns:
+      - pattern-either:
+        - pattern: $CONN->createCommand($SQL)->queryAll()
+        - pattern: $CONN->createCommand($SQL)->execute()
+      - pattern-not: $CONN->createCommand("...")->queryAll()
+      - pattern-not: $CONN->createCommand("...")->execute()
+    message: "Yii2 createCommand() with variable raw SQL. Use bindValue/bindParam: createCommand('SELECT ... WHERE id=:id')->bindValue(':id', $id)."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2

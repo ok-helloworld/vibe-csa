@@ -1,0 +1,108 @@
+rules:
+  - id: python-misc-001
+    patterns:
+      - pattern: lxml.etree.parse(...)
+      - pattern-not: lxml.etree.parse("...")
+    message: "lxml.etree.parse() with potentially user-controlled input. This allows XXE. Use defusedxml or disable external entities."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-611"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-misc-002
+    patterns:
+      - pattern: xml.etree.ElementTree.parse(...)
+      - pattern-not: xml.etree.ElementTree.parse("...")
+    message: "xml.etree.ElementTree.parse() with potentially user-controlled input. This allows XXE. Use defusedxml."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-611"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-misc-003
+    patterns:
+      - pattern: markupsafe.Markup(...)
+      - pattern-not: markupsafe.Markup("...")
+    message: "Markup() with potentially user-controlled input. This bypasses XSS protection. Ensure input is safe."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-79"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-misc-004
+    patterns:
+      - pattern: redirect(...)
+      - pattern-not: redirect("...")
+      - pattern-not-inside: redirect(url_for(...))
+    message: "redirect() with potentially user-controlled URL. This allows open redirect. Validate the URL."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-601"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-misc-005
+    patterns:
+      - pattern: HttpResponseRedirect(...)
+      - pattern-not: HttpResponseRedirect("...")
+    message: "HttpResponseRedirect() with potentially user-controlled URL. This allows open redirect."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-601"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-misc-006
+    patterns:
+      - pattern: HttpResponse(...)
+      - pattern-not: HttpResponse("...")
+      - pattern-not-inside: |
+          def $F(...):
+              ...
+              return render(...)
+    message: "HttpResponse() with potentially user-controlled input. This may lead to XSS if input is not escaped."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-79"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-misc-007
+    patterns:
+      - pattern: "@csrf_exempt"
+    message: "CSRF protection disabled. Ensure this endpoint is safe without CSRF protection (e.g., read-only or uses alternative auth)."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-352"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-misc-008
+    patterns:
+      - pattern: xml.sax.parse(...)
+      - pattern-not: xml.sax.parse("...")
+    message: "xml.sax.parse() with potentially user-controlled input. This allows XXE. Use defusedxml."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-611"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2

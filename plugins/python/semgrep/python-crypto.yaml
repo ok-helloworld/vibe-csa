@@ -1,0 +1,72 @@
+rules:
+  - id: python-crypto-001
+    patterns:
+      - pattern: hashlib.md5(...)
+    message: "MD5 is cryptographically weak. Use SHA-256 or SHA-3 for hashing. For passwords, use bcrypt or argon2."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-328"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-crypto-002
+    patterns:
+      - pattern: hashlib.sha1(...)
+    message: "SHA-1 is cryptographically weak. Use SHA-256 or SHA-3."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-328"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-crypto-003
+    patterns:
+      - pattern: Crypto.Cipher.DES.new(...)
+    message: "DES is cryptographically weak. Use AES with 256-bit key."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-326"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-crypto-004
+    patterns:
+      - pattern: Crypto.Cipher.AES.new(..., Crypto.Cipher.AES.MODE_ECB)
+    message: "AES in ECB mode is insecure. Use CBC, GCM, or CTR mode."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-326"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-crypto-005
+    patterns:
+      - pattern: random.$FUNC(...)
+    message: "random module is not cryptographically secure. Use secrets module for security-sensitive operations."
+    severity: INFO
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-330"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-crypto-006
+    patterns:
+      - pattern-regex: '(?i)(password|secret|api_key|apikey|token|access_key)\s*=\s*["\x27][^"\x27]{8,}["\x27]'
+    message: "Possible hardcoded secret or credential. Move to environment variables or a secure vault."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-798"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2

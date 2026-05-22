@@ -1,0 +1,144 @@
+rules:
+  - id: python-sqli-001
+    patterns:
+      - pattern: $CURSOR.execute(f"...{...}...")
+    message: "SQL query using f-string interpolation. This allows SQL injection. Use parameterized queries with ? or %s placeholders."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      references:
+        - "https://owasp.org/www-community/attacks/SQL_Injection"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-sqli-002
+    patterns:
+      - pattern: $CURSOR.execute("..." + ...)
+    message: "SQL query using string concatenation. This allows SQL injection. Use parameterized queries."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-sqli-003
+    patterns:
+      - pattern: $CURSOR.execute("..." % ...)
+    message: "SQL query using %-formatting. This allows SQL injection. Use parameterized queries."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-sqli-004
+    patterns:
+      - pattern: $CURSOR.execute("...".format(...))
+    message: "SQL query using .format(). This allows SQL injection. Use parameterized queries."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-sqli-005
+    patterns:
+      - pattern: $MODEL.objects.raw(...)
+      - pattern-not: $MODEL.objects.raw("...")
+    message: "Django ORM raw() with potentially user-controlled input. This allows SQL injection. Use ORM filter() instead."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      references:
+        - "https://docs.djangoproject.com/en/stable/topics/security/#sql-injection-protection"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-sqli-006
+    patterns:
+      - pattern: $SESSION.execute(text(...))
+      - pattern-not: $SESSION.execute(text("..."))
+    message: "SQLAlchemy execute() with text() and potentially user-controlled input. This allows SQL injection. Use parameterized queries."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-sqli-007
+    patterns:
+      - pattern: $CONN.cursor().execute($SQL)
+      - pattern-not: $CONN.cursor().execute("...")
+      # 排除：变量来自字面量赋值
+      - pattern-not-inside: |
+          $SQL = "..."
+          ...
+      # 允许：以参数化方式调用（execute(sql, params)） — 通过 $SQL 仅一个参数判定
+      - pattern-not: $CONN.cursor().execute($SQL, $PARAMS)
+      - pattern-not: $CONN.cursor().execute($SQL, params=$PARAMS)
+    message: "Database cursor execute() with non-literal SQL string and no parameter tuple. Use parameterized queries: cursor.execute('SELECT ... WHERE id=%s', (uid,))."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-sqli-008
+    patterns:
+      - pattern: |
+          $SQL = "..." % $VAR
+          ...
+          $CURSOR.execute($SQL)
+    message: "SQL query built with %-formatting and executed. This allows SQL injection. Use parameterized queries."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-sqli-009-sqlalchemy-text-concat
+    patterns:
+      - pattern-either:
+        - pattern: text($SQL + ...)
+        - pattern: sqlalchemy.text($SQL + ...)
+        - pattern: $SESSION.execute(text($SQL + ...))
+    message: "SQLAlchemy text() with string concatenation. Even when wrapped in text(), concat with user input is an injection. Use text(':name').bindparams() or parameter binding."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-sqli-010-pandas-read-sql-concat
+    patterns:
+      - pattern-either:
+        - pattern: pandas.read_sql($SQL + ..., ...)
+        - pattern: pd.read_sql($SQL + ..., ...)
+        - pattern: pandas.read_sql_query($SQL + ..., ...)
+        - pattern: pd.read_sql_query($SQL + ..., ...)
+    message: "pandas.read_sql() with concatenated SQL. Even though pandas accepts SQLAlchemy connections, the SQL string itself is passed verbatim. Use parameterized form: pd.read_sql(text('... :id ...'), conn, params={'id': uid})."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2

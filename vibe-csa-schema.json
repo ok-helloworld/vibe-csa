@@ -1,0 +1,724 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "vibe-csa unified security finding report",
+  "type": "object",
+  "required": ["schema_version", "audit", "findings"],
+  "additionalProperties": false,
+  "patternProperties": {
+    "^x_": {}
+  },
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": ["3.0"]
+    },
+    "audit": {
+      "type": "object",
+      "required": [
+        "audit_id",
+        "title",
+        "repository",
+        "target",
+        "stage",
+        "mode",
+        "scope",
+        "audit_date",
+        "language",
+        "summary"
+      ],
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x_": {}
+      },
+      "properties": {
+        "audit_id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "repository": { "type": "string" },
+        "target": {
+          "type": "object",
+          "required": ["source_path", "base_url"],
+          "additionalProperties": false,
+          "properties": {
+            "source_path": { "type": "string" },
+            "base_url": { "type": "string" },
+            "environment": {
+              "type": "string",
+              "enum": ["unknown", "local", "dev", "test", "staging", "production"],
+              "default": "unknown"
+            },
+            "auth_context": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "required": { "type": "boolean" },
+                "credential_source": {
+                  "type": "string",
+                  "enum": ["none", "user_provided", "browser_extracted", "unknown"]
+                },
+                "roles": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "stage": {
+          "type": "string",
+          "enum": ["static_audit", "dynamic_verification", "report"]
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["quick", "standard", "deep"]
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["full", "partial", "incremental"],
+          "default": "full"
+        },
+        "tool_versions": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "coverage_summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tier1_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "tier2_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "tier3_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "total_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "reviewed_files": { "type": "integer", "minimum": 0 },
+            "ealoc": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "audit_date": {
+          "type": "object",
+          "required": ["start", "end"],
+          "additionalProperties": false,
+          "properties": {
+            "start": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+            "end": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+          }
+        },
+        "language": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "summary": {
+          "type": "object",
+          "required": [
+            "total",
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "confirmed",
+            "hypothesis",
+            "runtime_verified",
+            "code_only",
+            "open",
+            "unverified"
+          ],
+          "additionalProperties": false,
+          "patternProperties": {
+            "^x_": {}
+          },
+          "properties": {
+            "total": { "type": "integer", "minimum": 0 },
+            "critical": { "type": "integer", "minimum": 0 },
+            "high": { "type": "integer", "minimum": 0 },
+            "medium": { "type": "integer", "minimum": 0 },
+            "low": { "type": "integer", "minimum": 0 },
+            "confirmed": { "type": "integer", "minimum": 0 },
+            "hypothesis": { "type": "integer", "minimum": 0 },
+            "runtime_verified": { "type": "integer", "minimum": 0 },
+            "code_only": { "type": "integer", "minimum": 0 },
+            "open": { "type": "integer", "minimum": 0 },
+            "unverified": { "type": "integer", "minimum": 0 },
+            "by_severity_status": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "by_type": {
+              "type": "object",
+              "additionalProperties": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "chains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["chain_id", "title", "steps"],
+        "additionalProperties": false,
+        "properties": {
+          "chain_id": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "severity": { "$ref": "#/definitions/severity" },
+          "dktss_score": { "type": "number", "minimum": 0, "maximum": 10 },
+          "description": { "type": "string" },
+          "steps": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["finding_id", "role"],
+              "additionalProperties": false,
+              "properties": {
+                "finding_id": { "type": "string" },
+                "role": {
+                  "type": "string",
+                  "enum": ["entry", "pivot", "escalation", "payload", "exfil"]
+                },
+                "note": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/finding" }
+    }
+  },
+  "definitions": {
+    "severity": {
+      "type": "string",
+      "enum": ["critical", "high", "medium", "low"]
+    },
+    "finding": {
+      "type": "object",
+      "required": [
+        "vuln_id",
+        "title",
+        "vuln_type",
+        "severity",
+        "status",
+        "confidence",
+        "evidence_level",
+        "finding_class",
+        "dktss_score",
+        "description",
+        "location",
+        "analysis",
+        "static_evidence",
+        "dynamic_verification",
+        "poc",
+        "remediation",
+        "fix"
+      ],
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x_": {}
+      },
+      "properties": {
+        "vuln_id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "vuln_type": { "type": "string", "minLength": 1 },
+        "category": {
+          "type": "string",
+          "enum": [
+            "injection",
+            "auth",
+            "ssrf_file",
+            "deserialization",
+            "business_logic",
+            "info_crypto",
+            "dependency",
+            "configuration",
+            "other"
+          ]
+        },
+        "cwe": { "type": "string", "pattern": "^CWE-\\d+$" },
+        "cve": { "type": "string", "pattern": "^CVE-\\d{4}-\\d+$" },
+        "severity": { "$ref": "#/definitions/severity" },
+        "status": {
+          "type": "string",
+          "enum": ["CONFIRMED", "HYPOTHESIS"]
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["high", "medium", "low"]
+        },
+        "evidence_level": {
+          "type": "string",
+          "enum": ["L0", "L1", "L2", "L3"]
+        },
+        "finding_class": {
+          "type": "string",
+          "enum": ["code_only", "runtime_verified"]
+        },
+        "dktss_score": { "type": "number", "minimum": 0, "maximum": 10 },
+        "chain_id": { "type": "string" },
+        "related_findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["vuln_id", "relation"],
+            "additionalProperties": false,
+            "properties": {
+              "vuln_id": { "type": "string" },
+              "relation": {
+                "type": "string",
+                "enum": ["depends_on", "escalates_to", "alternative", "duplicate_of", "same_root_cause"]
+              },
+              "note": { "type": "string" }
+            }
+          }
+        },
+        "description": { "type": "string", "minLength": 1 },
+        "impact": { "type": "string" },
+        "location": {
+          "type": "object",
+          "required": ["file", "line_start", "snippet"],
+          "additionalProperties": false,
+          "properties": {
+            "file": { "type": "string", "minLength": 1 },
+            "line_start": { "type": "integer", "minimum": 1 },
+            "line_end": { "type": "integer", "minimum": 1 },
+            "function": { "type": "string" },
+            "route": { "type": "string" },
+            "http_method": { "type": "string" },
+            "snippet": { "type": "string", "minLength": 1 }
+          }
+        },
+        "analysis": {
+          "type": "object",
+          "required": [
+            "source",
+            "sink",
+            "data_flow",
+            "attack_surface",
+            "preconditions",
+            "security_controls",
+            "bypass_strategy",
+            "verification_plan"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "type": "object",
+              "required": ["description"],
+              "additionalProperties": false,
+              "properties": {
+                "description": { "type": "string" },
+                "location": { "type": "string" },
+                "user_controlled": { "type": "boolean" },
+                "parameters": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            },
+            "sink": {
+              "type": "object",
+              "required": ["description"],
+              "additionalProperties": false,
+              "properties": {
+                "description": { "type": "string" },
+                "location": { "type": "string" },
+                "sink_type": { "type": "string" },
+                "dangerous_api": { "type": "string" }
+              }
+            },
+            "data_flow": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["step", "type", "location", "desc"],
+                "additionalProperties": false,
+                "properties": {
+                  "step": { "type": "integer", "minimum": 1 },
+                  "type": {
+                    "type": "string",
+                    "enum": ["source", "propagation", "validation", "sink"]
+                  },
+                  "location": { "type": "string" },
+                  "desc": { "type": "string" },
+                  "code": { "type": "string" }
+                }
+              }
+            },
+            "attack_surface": {
+              "type": "object",
+              "required": ["entrypoint"],
+              "additionalProperties": false,
+              "properties": {
+                "entrypoint": { "type": "string" },
+                "http_method": { "type": "string" },
+                "route": { "type": "string" },
+                "parameters": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "auth_required": { "type": "boolean" },
+                "required_role": { "type": "string" },
+                "content_type": { "type": "string" }
+              }
+            },
+            "preconditions": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "security_controls": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["control", "location", "assessment"],
+                "additionalProperties": false,
+                "properties": {
+                  "control": { "type": "string" },
+                  "location": { "type": "string" },
+                  "assessment": {
+                    "type": "string",
+                    "enum": ["missing", "present_bypassable", "present_effective", "unknown"]
+                  },
+                  "bypass_notes": { "type": "string" }
+                }
+              }
+            },
+            "bypass_strategy": {
+              "type": "object",
+              "required": ["feasible", "ideas"],
+              "additionalProperties": false,
+              "properties": {
+                "feasible": { "type": "boolean" },
+                "difficulty": {
+                  "type": "string",
+                  "enum": ["none", "low", "medium", "high", "unknown"]
+                },
+                "ideas": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["technique", "reason"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "technique": { "type": "string" },
+                      "payload_hint": { "type": "string" },
+                      "reason": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            },
+            "verification_plan": {
+              "type": "object",
+              "required": ["objective", "steps", "success_criteria"],
+              "additionalProperties": false,
+              "properties": {
+                "objective": { "type": "string" },
+                "steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["step", "action", "expected_signal"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "step": { "type": "integer", "minimum": 1 },
+                      "action": { "type": "string" },
+                      "expected_signal": { "type": "string" }
+                    }
+                  }
+                },
+                "success_criteria": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "static_evidence": {
+          "type": "object",
+          "required": [
+            "agent",
+            "confidence_reason",
+            "evidence_refs",
+            "reviewed_files",
+            "anti_false_positive"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "agent": { "type": "string" },
+            "confidence_reason": { "type": "string" },
+            "evidence_refs": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            },
+            "reviewed_files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["file", "role", "summary"],
+                "additionalProperties": false,
+                "properties": {
+                  "file": { "type": "string" },
+                  "role": {
+                    "type": "string",
+                    "enum": ["source", "propagation", "sink", "control", "entrypoint", "related"]
+                  },
+                  "summary": { "type": "string" }
+                }
+              }
+            },
+            "anti_false_positive": {
+              "type": "object",
+              "required": ["checked", "notes"],
+              "additionalProperties": false,
+              "properties": {
+                "checked": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "notes": { "type": "string" }
+              }
+            }
+          }
+        },
+        "dynamic_verification": {
+          "type": "object",
+          "required": ["state", "attempts", "final_evidence", "runtime_notes"],
+          "additionalProperties": false,
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": ["not_started", "in_progress", "verified", "failed", "blocked", "skipped"]
+            },
+            "attempts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["attempt", "payload_strategy", "result"],
+                "additionalProperties": false,
+                "properties": {
+                  "attempt": { "type": "integer", "minimum": 1 },
+                  "payload_strategy": { "type": "string" },
+                  "request_ref": { "type": "string" },
+                  "response_ref": { "type": "string" },
+                  "result": {
+                    "type": "string",
+                    "enum": ["success", "failure", "timeout", "auth_failed", "blocked"]
+                  },
+                  "evidence_snippet": { "type": "string" },
+                  "next_action": { "type": "string" }
+                }
+              }
+            },
+            "final_evidence": {
+              "type": "object",
+              "required": ["proof_type", "summary", "snippets"],
+              "additionalProperties": false,
+              "properties": {
+                "proof_type": {
+                  "type": "string",
+                  "enum": ["none", "http_signal", "business_state_change", "file_access", "command_output", "oob_callback", "sensitive_data"]
+                },
+                "summary": { "type": "string" },
+                "snippets": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["step", "source", "snippet"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "step": { "type": "integer", "minimum": 0 },
+                      "source": { "type": "string" },
+                      "response_field": { "type": "string", "enum": ["response.body", "response.raw", "response.headers"] },
+                      "snippet": { "type": "string" },
+                      "signature_type": { "type": "string" },
+                      "strength": { "type": "string", "enum": ["L1", "L2", "L3"] }
+                    }
+                  }
+                }
+              }
+            },
+            "runtime_notes": { "type": "string" }
+          }
+        },
+        "poc": { "$ref": "#/definitions/poc" },
+        "attack_path": {
+          "type": "object",
+          "required": ["total", "level"],
+          "additionalProperties": false,
+          "properties": {
+            "total": { "type": "integer", "minimum": 0, "maximum": 12 },
+            "level": { "type": "string", "enum": ["P0", "P1", "P2", "P3"] },
+            "auth_required": { "type": "integer", "minimum": 0, "maximum": 3 },
+            "request_complexity": { "type": "integer", "minimum": 0, "maximum": 3 },
+            "social_engineering": { "type": "integer", "minimum": 0, "maximum": 3 },
+            "exploit_barrier": { "type": "integer", "minimum": 0, "maximum": 3 }
+          }
+        },
+        "sink_slot": { "type": "string" },
+        "tracking_completeness": {
+          "type": "string",
+          "enum": ["FULL", "PARTIAL", "UNRESOLVED"]
+        },
+        "remediation": {
+          "type": "object",
+          "required": ["short_term", "long_term"],
+          "additionalProperties": false,
+          "properties": {
+            "short_term": { "type": "string" },
+            "long_term": { "type": "string" }
+          }
+        },
+        "fix": {
+          "type": "object",
+          "required": ["language", "before", "after"],
+          "additionalProperties": false,
+          "properties": {
+            "language": { "type": "string" },
+            "before": { "type": "string" },
+            "after": { "type": "string" }
+          }
+        }
+      }
+    },
+    "poc": {
+      "type": "object",
+      "required": ["steps", "result", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/poc_step" }
+        },
+        "result": {
+          "type": "string",
+          "enum": ["pending", "success", "failure", "timeout", "skipped", "auth_failed"]
+        },
+        "evidence": { "type": "string" },
+        "failure_log": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["step", "reason", "hypothesis", "next_action"],
+            "additionalProperties": false,
+            "properties": {
+              "step": { "type": "integer", "minimum": 0 },
+              "reason": { "type": "string" },
+              "hypothesis": { "type": "string" },
+              "next_action": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "poc_step": {
+      "type": "object",
+      "required": ["step", "request"],
+      "additionalProperties": false,
+      "properties": {
+        "step": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string" },
+        "request": {
+          "type": "object",
+          "required": ["method", "url"],
+          "additionalProperties": false,
+          "properties": {
+            "method": { "type": "string" },
+            "url": { "type": "string" },
+            "headers": { "type": "object" },
+            "params": { "type": "object" },
+            "raw": { "type": "string" },
+            "body": {
+              "oneOf": [
+                { "type": "string" },
+                {
+                  "type": "object",
+                  "not": { "required": ["_type"] }
+                },
+                {
+                  "type": "object",
+                  "required": ["_type", "fields"],
+                  "properties": {
+                    "_type": { "type": "string", "enum": ["multipart"] },
+                    "fields": { "type": "object" },
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["name", "filename", "content"],
+                        "additionalProperties": false,
+                        "properties": {
+                          "name": { "type": "string" },
+                          "filename": { "type": "string" },
+                          "content": { "type": "string" },
+                          "content_type": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "cookies": { "type": "object" }
+          }
+        },
+        "extract": {
+          "type": "object",
+          "patternProperties": {
+            "^[a-zA-Z_][a-zA-Z0-9_]*$": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "response": {
+          "type": "object",
+          "required": ["status", "body"],
+          "additionalProperties": false,
+          "patternProperties": {
+            "^_": {}
+          },
+          "properties": {
+            "status": { "type": "integer" },
+            "headers": { "type": "object" },
+            "raw": { "type": "string" },
+            "body": { "type": "string" },
+            "body_truncated": { "type": "boolean" },
+            "body_full_length": { "type": "integer", "minimum": 0 },
+            "body_omitted_bytes": { "type": "integer", "minimum": 0 },
+            "body_excerpt_strategy": {
+              "type": "string",
+              "enum": ["full", "evidence_window", "head_tail"]
+            },
+            "body_excerpt_ranges": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["start", "end", "reason"],
+                "additionalProperties": false,
+                "properties": {
+                  "start": { "type": "integer", "minimum": 0 },
+                  "end": { "type": "integer", "minimum": 0 },
+                  "reason": { "type": "string" }
+                }
+              }
+            },
+            "redirect_chain": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["url", "status"],
+                "additionalProperties": false,
+                "properties": {
+                  "url": { "type": "string" },
+                  "status": { "type": "integer" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

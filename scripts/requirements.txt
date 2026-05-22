@@ -1,0 +1,5 @@
+jsonschema>=4.0
+requests>=2.28
+urllib3>=1.26
+python-docx>=1.1
+matplotlib>=3.8

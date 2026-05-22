@@ -1,0 +1,198 @@
+rules:
+  - id: python-rce-001
+    patterns:
+      - pattern: eval(...)
+      - pattern-not: eval("...")
+    message: "eval() with potentially user-controlled input. This allows arbitrary code execution. Use ast.literal_eval() for safe evaluation of literals."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-94"
+      references:
+        - "https://owasp.org/www-community/attacks/Code_Injection"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-rce-002
+    patterns:
+      - pattern: exec(...)
+      - pattern-not: exec("...")
+    message: "exec() with potentially user-controlled input. This allows arbitrary code execution. Remove dynamic code execution or ensure input is never user-controlled."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-94"
+      references:
+        - "https://owasp.org/www-community/attacks/Code_Injection"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-rce-003
+    patterns:
+      - pattern: os.system(...)
+      - pattern-not: os.system("...")
+    message: "os.system() with potentially user-controlled input. This allows command injection. Use subprocess.run() with a list of arguments instead."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-78"
+      references:
+        - "https://owasp.org/www-community/attacks/Command_Injection"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-rce-004
+    patterns:
+      - pattern: os.popen(...)
+      - pattern-not: os.popen("...")
+    message: "os.popen() with potentially user-controlled input. This allows command injection. Use subprocess.run() with a list of arguments."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-78"
+      references:
+        - "https://owasp.org/www-community/attacks/Command_Injection"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-rce-005
+    patterns:
+      - pattern: subprocess.$FUNC($CMD, ..., shell=True, ...)
+      # 排除字符串字面量调用
+      - pattern-not: subprocess.$FUNC("...", ..., shell=True, ...)
+      # 排除完全字面量列表
+      - pattern-not: subprocess.$FUNC([...], ..., shell=True, ...)
+    message: "subprocess with shell=True and potentially user-controlled input. This allows command injection. Use shell=False with a list of arguments."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-78"
+      references:
+        - "https://docs.python.org/3/library/subprocess.html#security-considerations"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-rce-005b
+    patterns:
+      - pattern-either:
+        - pattern: subprocess.$FUNC([...] + $VAR, ...)
+        - pattern: subprocess.$FUNC([...] + $VAR)
+    message: "subprocess called with list concatenation containing a variable. Even with shell=False, the variable values become argv entries directly under attacker control. Validate/whitelist user-supplied tokens."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-78"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-rce-006
+    patterns:
+      - pattern: __import__(...)
+      - pattern-not: __import__("...")
+    message: "__import__() with potentially user-controlled input. This allows dynamic module loading and potential code execution."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-94"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-rce-007
+    patterns:
+      - pattern: importlib.import_module(...)
+      - pattern-not: importlib.import_module("...")
+    message: "importlib.import_module() with potentially user-controlled input. This allows dynamic module loading. Validate the module name against a whitelist."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-94"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-rce-008
+    patterns:
+      - pattern: render_template_string($TPL, ...)
+      - pattern-not: render_template_string("...", ...)
+      # 排除模板变量来源于上下文绑定的字面量赋值
+      - pattern-not-inside: |
+          $TPL = "..."
+          ...
+      # 排除从安全配置常量加载
+      - pattern-not-inside: |
+          $TPL = $CONFIG.$X
+          ...
+    message: "render_template_string() with non-literal template. SSTI risk if the template content is reachable from user input. Use render_template() with a fixed template file path."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-94"
+      references:
+        - "https://pequalsnp-team.github.io/cheatsheet/flask-jinja2-ssti"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-rce-009
+    patterns:
+      - pattern: jinja2.Template($TPL).render(...)
+      - pattern-not: jinja2.Template("...").render(...)
+      - pattern-not-inside: |
+          $TPL = "..."
+          ...
+    message: "Jinja2 Template() with non-literal template. SSTI risk if the template content is reachable from user input."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-94"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-rce-010
+    patterns:
+      - pattern: render_to_string(...)
+      - pattern-not: render_to_string("...")
+    message: "Django render_to_string() with potentially user-controlled template name. This may lead to SSTI. Use fixed template names."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-94"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-rce-011
+    patterns:
+      - pattern: compile(..., 'exec')
+      - pattern-not: compile("...", 'exec')
+    message: "compile() with 'exec' mode and potentially user-controlled input. Combined with exec(), this allows arbitrary code execution."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-94"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-rce-012
+    patterns:
+      - pattern: |
+          $VAR = compile(...)
+          ...
+          exec($VAR, ...)
+    message: "compile() + exec() combination with potentially user-controlled input. This allows arbitrary code execution."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-94"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2

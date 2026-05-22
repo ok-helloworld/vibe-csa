@@ -1,0 +1,156 @@
+rules:
+  - id: python-deser-001
+    patterns:
+      - pattern: pickle.loads(...)
+      - pattern-not: pickle.loads(b"...")
+    message: "pickle.loads() with potentially user-controlled input. This allows arbitrary code execution. Never unpickle untrusted data."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      references:
+        - "https://docs.python.org/3/library/pickle.html#restricting-globals"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-deser-002
+    patterns:
+      - pattern: pickle.load(...)
+    message: "pickle.load() with potentially user-controlled file. This allows arbitrary code execution. Never unpickle untrusted data."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-deser-003
+    patterns:
+      - pattern: yaml.load($INPUT, ...)
+      # 排除字面量
+      - pattern-not: yaml.load("...", ...)
+      - pattern-not: yaml.load(b"...", ...)
+      # 排除 SafeLoader / safe_load 显式指定
+      - pattern-not: yaml.load(..., Loader=yaml.SafeLoader)
+      - pattern-not: yaml.load(..., Loader=SafeLoader)
+      - pattern-not: yaml.load(..., yaml.SafeLoader)
+    message: "yaml.load() without SafeLoader allows arbitrary code execution. Use yaml.safe_load() or specify Loader=yaml.SafeLoader."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-deser-009-unsafe-load
+    patterns:
+      - pattern: yaml.unsafe_load(...)
+    message: "yaml.unsafe_load() explicitly disables safety — allows arbitrary code execution. Use yaml.safe_load() unless the input is fully trusted (e.g., bundled config)."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-deser-010-joblib
+    patterns:
+      - pattern-either:
+        - pattern: joblib.load($PATH)
+        - pattern: joblib.load($PATH, ...)
+      - pattern-not: joblib.load("...")
+      - pattern-not: joblib.load("...", ...)
+    message: "joblib.load() uses pickle internally — if file path is attacker-controlled, leads to arbitrary code execution. Commonly used for sklearn models; treat .pkl/.joblib like untrusted code."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-deser-011-dill-cloudpickle
+    patterns:
+      - pattern-either:
+        - pattern: dill.loads($INPUT)
+        - pattern: dill.load($INPUT)
+        - pattern: cloudpickle.loads($INPUT)
+        - pattern: cloudpickle.load($INPUT)
+      - pattern-not: dill.loads(b"...")
+      - pattern-not: dill.load(b"...")
+      - pattern-not: cloudpickle.loads(b"...")
+      - pattern-not: cloudpickle.load(b"...")
+    message: "dill/cloudpickle deserialize untrusted bytes — same RCE risk as pickle (these are pickle extensions for code objects, even more dangerous)."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-deser-004
+    patterns:
+      - pattern: yaml.load(..., Loader=yaml.UnsafeLoader)
+    message: "yaml.load() with UnsafeLoader allows arbitrary code execution. Use yaml.SafeLoader."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-deser-005
+    patterns:
+      - pattern: yaml.load(..., Loader=yaml.FullLoader)
+    message: "yaml.load() with FullLoader may still be vulnerable to certain attacks. Prefer yaml.SafeLoader."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-deser-006
+    patterns:
+      - pattern: marshal.loads(...)
+      - pattern-not: marshal.loads(b"...")
+    message: "marshal.loads() with potentially user-controlled input. This allows code execution. Never unmarshal untrusted data."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-deser-007
+    patterns:
+      - pattern: shelve.open(...)
+    message: "shelve uses pickle internally. If the shelf file is user-controlled, this allows code execution."
+    severity: WARNING
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2
+
+  - id: python-deser-008
+    patterns:
+      - pattern: jsonpickle.decode(...)
+      - pattern-not: jsonpickle.decode("...")
+    message: "jsonpickle.decode() with potentially user-controlled input. This allows arbitrary code execution."
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      vibe-csa-plugin: python
+      vibe-csa-phase: 2

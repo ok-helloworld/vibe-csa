@@ -1,0 +1,225 @@
+rules:
+  - id: php-rce-001
+    patterns:
+      - pattern: eval(...)
+      - pattern-not: eval("...")
+    message: "eval() with potentially user-controlled input. This allows arbitrary code execution. Remove dynamic code evaluation."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-94"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-rce-002
+    patterns:
+      - pattern: assert($EXPR)
+      # 排除显式 true/false 字面量
+      - pattern-not: assert(true)
+      - pattern-not: assert(false)
+      # 排除典型布尔表达式（不可能触发代码执行）
+      - pattern-not: assert($X === $Y)
+      - pattern-not: assert($X !== $Y)
+      - pattern-not: assert($X == $Y)
+      - pattern-not: assert($X != $Y)
+      - pattern-not: assert(isset($X))
+      - pattern-not: assert(empty($X))
+      - pattern-not: assert(is_$TYPE($X))
+      # 字符串字面量
+      - pattern-not: assert("...")
+    message: "assert() with potentially user-controlled expression. In PHP < 7, this evaluates as code (RCE). PHP 7+ only triggers when assert.active=1 + zend.assertions=1 (default off in production). Still recommended to avoid."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-94"
+      php_version_note: "PHP 7+ requires assert.active=1 AND zend.assertions=1 (both off by default)"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-rce-003
+    patterns:
+      - pattern: preg_replace('/.../e', ...)
+    message: "preg_replace with /e modifier allows code execution in the replacement. Use preg_replace_callback instead."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-94"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-rce-004
+    patterns:
+      - pattern: create_function(...)
+    message: "create_function() uses eval() internally. This allows arbitrary code execution. Use anonymous functions (closures) instead."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-94"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-rce-005
+    patterns:
+      - pattern: system(...)
+      - pattern-not: system("...")
+    message: "system() with potentially user-controlled input. This allows command injection. Avoid shell commands or use escapeshellarg()."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-78"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-rce-006
+    patterns:
+      - pattern: passthru(...)
+      - pattern-not: passthru("...")
+    message: "passthru() with potentially user-controlled input. This allows command injection."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-78"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-rce-007
+    patterns:
+      - pattern: exec(...)
+      - pattern-not: exec("...")
+    message: "exec() with potentially user-controlled input. This allows command injection. Use escapeshellarg() to sanitize arguments."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-78"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-rce-008
+    patterns:
+      - pattern: shell_exec(...)
+      - pattern-not: shell_exec("...")
+    message: "shell_exec() with potentially user-controlled input. This allows command injection."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-78"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-rce-009
+    patterns:
+      - pattern: popen(...)
+      - pattern-not: popen("...")
+    message: "popen() with potentially user-controlled input. This allows command injection."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-78"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-rce-010
+    patterns:
+      - pattern: proc_open(...)
+      - pattern-not: proc_open("...", ...)
+    message: "proc_open() with potentially user-controlled input. This allows command injection."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-78"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-rce-011
+    patterns:
+      # 精确匹配 ${var} 插值 或 $varname (不含纯字符串字面量)
+      - pattern-either:
+        - pattern-regex: '`[^`]*\$\{[^}]+\}[^`]*`'
+        - pattern-regex: '`[^`]*\$[a-zA-Z_][a-zA-Z0-9_]*[^`]*`'
+    message: "Backtick execution operator with variable interpolation (RCE via shell). Avoid backtick execution with user input."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-78"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-rce-include-dynamic
+    patterns:
+      - pattern-either:
+        - pattern: include($PATH)
+        - pattern: include_once($PATH)
+        - pattern: require($PATH)
+        - pattern: require_once($PATH)
+        - pattern: include $PATH;
+        - pattern: include_once $PATH;
+        - pattern: require $PATH;
+        - pattern: require_once $PATH;
+      - pattern-not: include("...")
+      - pattern-not: include_once("...")
+      - pattern-not: require("...")
+      - pattern-not: require_once("...")
+      - pattern-not: include "...";
+      - pattern-not: include_once "...";
+      - pattern-not: require "...";
+      - pattern-not: require_once "...";
+      # 排除 __DIR__ / dirname(__FILE__) 等固定路径拼接
+      - pattern-not-regex: 'include[_a-z]*\s*\(\s*__DIR__'
+      - pattern-not-regex: 'require[_a-z]*\s*\(\s*__DIR__'
+      - pattern-not-regex: 'include[_a-z]*\s*\(\s*dirname\s*\(\s*__FILE__'
+      - pattern-not-regex: 'require[_a-z]*\s*\(\s*dirname\s*\(\s*__FILE__'
+    message: "Dynamic include/require with variable path (LFI / RCE risk). Validate path against a whitelist and avoid attacker-controlled segments."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-98"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-rce-call-user-func
+    patterns:
+      - pattern-either:
+        - pattern: call_user_func($FN, ...)
+        - pattern: call_user_func_array($FN, ...)
+      - pattern-not: call_user_func("...", ...)
+      - pattern-not: call_user_func_array("...", ...)
+      # 排除明确的闭包字面量
+      - pattern-not: call_user_func(function(...){...}, ...)
+      - pattern-not: call_user_func_array(function(...){...}, ...)
+    message: "Dynamic function dispatch via call_user_func/_array with variable callback. If callback string is attacker-controlled, leads to arbitrary code execution. Validate callable against a whitelist."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-94"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-rce-class-exists-autoload
+    patterns:
+      - pattern-either:
+        - pattern: class_exists($CLS)
+        - pattern: class_exists($CLS, true)
+        - pattern: new $CLS(...)
+      - pattern-not: class_exists("...")
+      - pattern-not: class_exists("...", ...)
+    message: "Dynamic class name in class_exists()/new with autoloader (default behavior). Attacker-controlled class name can trigger registered autoloaders → potential RCE via crafted class lookups. Validate against whitelist or disable autoload."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-470"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2

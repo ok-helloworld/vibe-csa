@@ -1,0 +1,106 @@
+rules:
+  - id: php-file-001
+    patterns:
+      - pattern: file_put_contents(...)
+      - pattern-not: file_put_contents("...", ...)
+    message: "file_put_contents() with potentially user-controlled path. This allows arbitrary file write and path traversal."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-file-002
+    patterns:
+      - pattern-either:
+          - pattern: include $VAR
+          - pattern: require $VAR
+          - pattern: include_once $VAR
+          - pattern: require_once $VAR
+    message: "include/require with variable. If the variable is user-controlled, this allows arbitrary file inclusion and code execution."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-98"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-file-003
+    patterns:
+      - pattern: readfile(...)
+      - pattern-not: readfile("...")
+    message: "readfile() with potentially user-controlled path. This allows arbitrary file read and path traversal."
+    severity: ERROR
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-file-004
+    patterns:
+      - pattern: move_uploaded_file(...)
+      - pattern-not: move_uploaded_file(..., "...")
+    message: "move_uploaded_file() with potentially user-controlled destination. Validate file type, size, and destination path."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-434"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-file-005
+    patterns:
+      - pattern: unlink(...)
+      - pattern-not: unlink("...")
+    message: "unlink() with potentially user-controlled path. This allows arbitrary file deletion and path traversal."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-file-006
+    patterns:
+      - pattern: rmdir(...)
+      - pattern-not: rmdir("...")
+    message: "rmdir() with potentially user-controlled path. This allows arbitrary directory deletion."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-file-007
+    patterns:
+      - pattern: fwrite(...)
+    message: "fwrite() called. If the file handle was opened with a user-controlled path, this allows arbitrary file write."
+    severity: INFO
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-file-008
+    patterns:
+      - pattern: |
+          Storage::put(...)
+    message: "Laravel Storage::put() called. If the path is user-controlled, this allows path traversal."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2

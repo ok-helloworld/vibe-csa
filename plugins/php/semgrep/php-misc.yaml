@@ -1,0 +1,100 @@
+rules:
+  - id: php-misc-001
+    patterns:
+      - pattern: echo $VAR
+      - pattern-not: echo "..."
+    message: "echo with variable output. If the variable contains user input without htmlspecialchars(), this allows XSS."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-79"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-misc-002
+    patterns:
+      - pattern: print $VAR
+      - pattern-not: print "..."
+    message: "print with variable output. If the variable contains user input without escaping, this allows XSS."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-79"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-misc-003
+    patterns:
+      - pattern-regex: 'header\s*\(\s*["\x27]Location:\s*["\x27]\s*\.\s*\$'
+    message: "header() Location redirect with variable. This allows open redirect if the variable is user-controlled. Validate the URL."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-601"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-misc-004
+    patterns:
+      - pattern: header(...)
+    message: "header() with potentially user-controlled value. If the value contains \\r\\n, this allows CRLF injection and response splitting."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-113"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-misc-005
+    patterns:
+      - pattern-regex: 'Access-Control-Allow-Origin:\s*\*'
+    message: "CORS Access-Control-Allow-Origin set to *. This allows any origin to make cross-origin requests. Restrict to trusted origins."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-948"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-misc-006
+    patterns:
+      - pattern-regex: 'display_errors\s*=\s*(1|On|true)'
+    message: "display_errors enabled in production. This exposes sensitive information. Set display_errors = Off."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-489"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-misc-007
+    patterns:
+      - pattern: |
+          !!$VAR !!
+    message: "Blade unescaped output {!! !!}. If $VAR contains user input, this allows XSS."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-79"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2
+
+  - id: php-misc-008
+    patterns:
+      - pattern: redirect(...)
+      - pattern-not: redirect("...")
+    message: "Laravel redirect() with potentially user-controlled URL. This allows open redirect."
+    severity: WARNING
+    languages: [php]
+    metadata:
+      category: security
+      cwe: "CWE-601"
+      vibe-csa-plugin: php
+      vibe-csa-phase: 2

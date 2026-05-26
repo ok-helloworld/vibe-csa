@@ -94,12 +94,9 @@ root
 
 **⚠️ PoC 数据真实性铁律（绝对不可违反）**：
 
-1. `poc.steps[].response` 中的 status、headers、body **必须来自 verify_vuln.py 脚本的实际写入**，禁止 LLM 预填、推断或补全任何响应字段
-2. 调用脚本之前，`poc.steps[n]` 只写 `request`，**response 字段必须留空**
-3. 调用脚本之后，必须 Read `vibe-csa-draft.json` 读取脚本写入的真实响应，再进行下一步判断
-4. `poc.evidence` 必须引用 response.body 中能**直接证明漏洞存在**的具体内容原文（如 `"response body 第2行出现 'root:x:0:0:root:/root:/bin/bash'，确认路径穿越读取到 /etc/passwd"`），不得仅写"响应成功"或"HTTP 200"，不得包含对未见响应的推断
-5. `poc.result = "success"` 的判定标准：response.body 中能找到与漏洞类型对应的直接证据（数据泄露内容/payload执行结果/其他用户数据/命令输出等），仅凭状态码不可判定成功
-6. 多步骤漏洞每步记录为一个 step；响应 body 过长时截取能证明漏洞的关键部分（最多 4096 字符）
+1. `poc.evidence` 必须引用 response.body 中能**直接证明漏洞存在**的具体内容原文（如 `"response body 第2行出现 'root:x:0:0:root:/root:/bin/bash'，确认路径穿越读取到 /etc/passwd"`），不得仅写"响应成功"或"HTTP 200"，不得包含对未见响应的推断
+2. `poc.result = "success"` 的判定标准：response.body 中能找到与漏洞类型对应的直接证据（数据泄露内容/payload执行结果/其他用户数据/命令输出等），仅凭状态码不可判定成功
+3. 多步骤漏洞每步记录为一个 step；响应 body 过长时截取能证明漏洞的关键部分（最多 4096 字符）
 
 **POC steps 与 response 按 result 的强制要求**：
 
@@ -321,7 +318,6 @@ root
 ## 五、格式规则
 
 - `location.snippet` 只包含 1-3 行核心代码，不大段复制
-- `poc.steps[].response` 只记录 verify_vuln.py 写入的原始数据（status/headers/body），**禁止任何 LLM 生成内容**
 - `poc.steps[].response.body` 只截取能证明漏洞的关键片段（最多 4096 字符）
 - `poc.result` 必须有值（success/failure/timeout/skipped/auth_failed）
 - `poc.evidence` 在顶层引用真实响应中的证据字段，说明漏洞如何被确认

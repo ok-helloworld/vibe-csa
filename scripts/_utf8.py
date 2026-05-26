@@ -36,7 +36,7 @@ TEXT_FIELD_KEYS = {
 }
 
 QUESTION_RUN_RE = re.compile(r"\?{3,}")
-PLACEHOLDER_HINTS = ("TODO", "TBD", "PLACEHOLDER", "<TODO>", "REPLACE_ME")
+PLACEHOLDER_HINTS = {"TODO", "TBD", "PLACEHOLDER", "<TODO>", "REPLACE_ME"}
 
 
 def configure_utf8_runtime() -> None:
@@ -66,18 +66,26 @@ def _should_inspect_path(path: tuple[Any, ...]) -> bool:
     return any(isinstance(item, str) and item in TEXT_FIELD_KEYS for item in path)
 
 
+def _is_placeholder_only_text(text: str) -> bool:
+    normalized = text.strip().upper()
+    return normalized in PLACEHOLDER_HINTS
+
+
+def _is_question_placeholder_text(text: str) -> bool:
+    if not QUESTION_RUN_RE.search(text):
+        return False
+    return not any(char.isalnum() for char in text)
+
+
 def _is_suspicious_text(value: str) -> bool:
     text = value.strip()
     if not text:
         return False
     if "\ufffd" in text:
         return True
-    if QUESTION_RUN_RE.search(text):
+    if _is_question_placeholder_text(text):
         return True
-    if text.count("?") >= 3:
-        return True
-    upper = text.upper()
-    if any(token in upper for token in PLACEHOLDER_HINTS):
+    if _is_placeholder_only_text(text):
         return True
     return False
 

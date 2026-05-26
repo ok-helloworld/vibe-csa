@@ -3,13 +3,15 @@
 
 The output is a single-finding JSON scaffold based on
 `references/dynamic-init-example.json`, then filled with the static finding
-content from `static-merged.json`.
+content from `static-merged.json` and written as
+`FINDING-{severity}-{id_suffix}.poc.json`.
 """
 
 from __future__ import annotations
 
 import argparse
 import copy
+import os
 import json
 import re
 import sys
@@ -31,6 +33,8 @@ configure_utf8_runtime()
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 DEFAULT_TEMPLATE = REPO_ROOT / "references" / "dynamic-init-example.json"
+SEVERITY_ORDER = {"critical", "high", "medium", "low"}
+SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 
 def signature_type_for(finding: dict) -> str:
@@ -61,6 +65,109 @@ def signature_type_for(finding: dict) -> str:
 def marker_for(finding: dict) -> str:
     raw = re.sub(r"[^A-Za-z0-9]", "", finding.get("vuln_id", "FINDING"))[-12:]
     return f"VIBECSA-{raw or 'POC'}"
+
+
+def normalize_severity(value: Any) -> str:
+    severity = str(value or "medium").strip().lower()
+    if severity not in SEVERITY_ORDER:
+        return "medium"
+    return severity
+
+
+def finding_id_suffix_for(vuln_id: Any, index: int) -> str:
+    raw = str(vuln_id or "").strip()
+    if raw.upper().startswith("FINDING-"):
+        raw = raw[8:]
+    suffix = re.sub(r"[^A-Za-z0-9_-]+", "-", raw).strip("-_")
+    return suffix or f"{index:03d}"
+
+
+def output_filename_for(finding: dict, index: int) -> str:
+    severity = normalize_severity(finding.get("severity"))
+    suffix = finding_id_suffix_for(finding.get("vuln_id"), index)
+    return f"FINDING-{severity}-{suffix}.poc.json"
+
+
+def atomic_write_json(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    tmp.replace(path)
+
+
+def default_state_file_for(output_dir: Path) -> Path:
+    return output_dir.parent / "dynamic-state.json"
+
+
+def state_path_for(output_file: Path, state_file: Path) -> str:
+    try:
+        common = Path(os.path.commonpath([str(output_file.resolve()), str(state_file.parent.resolve())]))
+        relative = output_file.resolve().relative_to(common)
+        return f"{common.name}/{relative.as_posix()}" if common.name else relative.as_posix()
+    except Exception:
+        return output_file.as_posix()
+
+
+def side_effect_level_for(finding: dict) -> str:
+    vuln_type = str(finding.get("vuln_type") or "").lower()
+    sink_type = str((((finding.get("analysis") or {}).get("sink") or {}).get("sink_type")) or "").lower()
+    method = str((((finding.get("analysis") or {}).get("attack_surface") or {}).get("http_method"))
+                 or ((finding.get("location") or {}).get("http_method")) or "").upper()
+
+    high_risk_tokens = ("upload", "write", "delete", "unlink", "remove", "restore", "execute", "rce", "command")
+    medium_risk_methods = {"POST", "PUT", "PATCH", "DELETE"}
+
+    if any(token in vuln_type for token in ("文件上传", "任意文件写入", "任意文件删除", "命令执行", "代码执行", "反序列化")):
+        return "high"
+    if any(token in sink_type for token in ("文件写入", "文件删除", "命令执行", "代码执行")):
+        return "high"
+    if any(token in sink_type for token in high_risk_tokens) or method in medium_risk_methods:
+        return "medium"
+    return "low"
+
+
+def conflict_key_for(finding: dict, side_effect_level: str) -> str:
+    attack_surface = (finding.get("analysis") or {}).get("attack_surface") or {}
+    location = finding.get("location") or {}
+    auth_required = bool(attack_surface.get("auth_required"))
+    required_role = str(attack_surface.get("required_role") or "default").strip() or "default"
+    method = str(attack_surface.get("http_method") or location.get("http_method") or "UNKNOWN").upper()
+    route = str(attack_surface.get("route") or location.get("route") or "unknown").strip() or "unknown"
+    auth_scope = "auth" if auth_required else "anonymous"
+    return f"{auth_scope}|role:{required_role}|method:{method}|route:{route}|effect:{side_effect_level}"
+
+
+def build_state_entry(prepared: dict, output_file: Path, state_file: Path) -> dict[str, Any]:
+    severity = normalize_severity(prepared.get("severity"))
+    side_effect_level = side_effect_level_for(prepared)
+    return {
+        "vuln_id": str(prepared.get("vuln_id") or ""),
+        "severity": severity,
+        "finding_file": state_path_for(output_file, state_file),
+        "status": "pending",
+        "leased_by": "",
+        "lease_until": "",
+        "conflict_key": conflict_key_for(prepared, side_effect_level),
+        "last_error": "",
+    }
+
+
+def build_dynamic_state(findings: list[dict[str, Any]], state_file: Path, max_parallel: int, target_url: str) -> dict[str, Any]:
+    return {
+        "version": "vibe-csa-v1",
+        "stage": "dynamic_verification",
+        "max_parallel": max_parallel,
+        "status": "in_progress",
+        "target_url": target_url,
+        "agents": [
+            {
+                "agent_id": f"dynamic-verifier-{idx}",
+                "current_vuln_id": "",
+            }
+            for idx in range(1, max_parallel + 1)
+        ],
+        "findings": sorted(findings, key=lambda item: (SEVERITY_RANK[item["severity"]], item["vuln_id"])),
+    }
 
 
 def load_json(path: Path) -> Any:
@@ -199,15 +306,36 @@ def should_prepare(finding: dict, include_all: bool) -> bool:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Initialize minimal Stage 2 PoC sub-files from static findings")
     parser.add_argument("--input", required=True, help="Path to .vibe-csa/static-merged.json")
-    parser.add_argument("--output-dir", required=True, help="Directory for FINDING-xxx.poc.json")
+    parser.add_argument(
+        "--output-dir",
+        required=True,
+        help="Directory for FINDING-{severity}-{id_suffix}.poc.json",
+    )
     parser.add_argument(
         "--template",
         default=str(DEFAULT_TEMPLATE),
         help="Path to the dynamic finding example JSON template.",
     )
+    parser.add_argument(
+        "--state-file",
+        help="Optional path to write dynamic-state.json. Defaults to <output-dir parent>/dynamic-state.json.",
+    )
+    parser.add_argument(
+        "--max-parallel",
+        type=int,
+        default=3,
+        help="Max parallel dynamic-verifier agents to pre-register in dynamic-state.json (default: 3).",
+    )
+    parser.add_argument(
+        "--target-url",
+        default="",
+        help="Optional target URL to record in dynamic-state.json.",
+    )
     parser.add_argument("--finding", action="append", default=[], help="Only prepare this vuln_id; can repeat")
     parser.add_argument("--all", action="store_true", help="Prepare all findings even if poc.result is not pending")
     args = parser.parse_args()
+    if args.max_parallel < 1:
+        raise SystemExit("[ERROR] --max-parallel must be >= 1")
 
     global DYNAMIC_TEMPLATE, DYNAMIC_FINDING_TEMPLATE
     DYNAMIC_TEMPLATE = load_json(Path(args.template))
@@ -220,10 +348,12 @@ def main() -> None:
     data = load_json(Path(args.input))
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    state_file = Path(args.state_file) if args.state_file else default_state_file_for(output_dir)
 
     wanted = set(args.finding)
     count = 0
-    for finding in data.get("findings") or []:
+    state_findings: list[dict[str, Any]] = []
+    for idx, finding in enumerate(data.get("findings") or [], start=1):
         vid = finding.get("vuln_id")
         if wanted and vid not in wanted:
             continue
@@ -236,14 +366,19 @@ def main() -> None:
             for issue in issues[:10]:
                 print(f"  - {issue['path']}: {issue['message']}", file=sys.stderr)
             sys.exit(1)
-        out = output_dir / f"{vid}.poc.json"
-        out.write_text(json.dumps(prepared, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        out = output_dir / output_filename_for(prepared, idx)
+        atomic_write_json(out, prepared)
+        state_findings.append(build_state_entry(prepared, out, state_file))
         count += 1
         print(f"[OK] prepared {vid}: {out}")
 
     if count == 0:
         print("[WARN] no findings prepared", file=sys.stderr)
         sys.exit(1)
+
+    dynamic_state = build_dynamic_state(state_findings, state_file, args.max_parallel, args.target_url.strip())
+    atomic_write_json(state_file, dynamic_state)
+    print(f"[OK] wrote dynamic state: {state_file}")
 
 
 if __name__ == "__main__":

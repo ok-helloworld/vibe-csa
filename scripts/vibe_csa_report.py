@@ -311,6 +311,38 @@ def generate_charts(data, output_dir):
 # 报告生成主函数
 # =============================================================================
 
+def get_finding_status(finding, audit_stage):
+    """
+    根据动态验证结果确定漏洞状态
+    
+    Args:
+        finding: 漏洞数据字典
+        audit_stage: 审计阶段 (static_audit 或 dynamic_verification)
+    
+    Returns:
+        str: 状态标签（已确认/待验证/验证未成功）
+    """
+    if audit_stage != 'dynamic_verification':
+        return finding.get('status', 'CONFIRMED')
+    
+    # 动态验证阶段，根据 actual result 确定状态
+    poc = finding.get('poc', {})
+    poc_result = poc.get('result', 'pending')
+    dynamic_verification = finding.get('dynamic_verification', {})
+    dv_state = dynamic_verification.get('state', 'not_started')
+    
+    # 状态映射逻辑
+    if poc_result == 'success' or dv_state == 'verified':
+        return 'CONFIRMED'  # 已确认
+    elif poc_result == 'pending' or dv_state == 'not_started':
+        return 'HYPOTHESIS'  # 待验证
+    elif poc_result == 'failure' or dv_state == 'failed':
+        return 'FAILED'  # 验证未成功
+    else:
+        # 其他情况（partial等）
+        return 'FAILED'  # 默认归类为验证未成功
+
+
 def generate_report(data, logo_path, output_path):
     """
     生成 Word 安全审计报告
@@ -420,15 +452,26 @@ def generate_report(data, logo_path, output_path):
 
     summary = data['audit']['summary']
     findings = data['findings']
+    audit_stage = data['audit'].get('stage', 'static_audit')
     
-    # 动态统计已确认和假设性漏洞数量（不依赖summary字段）
-    confirmed_count = sum(1 for f in findings if f.get('status') == 'CONFIRMED')
-    hypothesis_count = sum(1 for f in findings if f.get('status') == 'HYPOTHESIS')
+    # 动态统计三种状态的数量
+    confirmed_count = 0  # 已确认
+    hypothesis_count = 0  # 待验证
+    failed_count = 0  # 验证未成功
+    
+    for finding in findings:
+        status = get_finding_status(finding, audit_stage)
+        if status == 'CONFIRMED':
+            confirmed_count += 1
+        elif status == 'HYPOTHESIS':
+            hypothesis_count += 1
+        elif status == 'FAILED':
+            failed_count += 1
     
     add_paragraph_custom(doc,
         f"本次安全审计共发现 {summary['total']} 个安全漏洞，其中严重漏洞 {summary['critical']} 个、"
         f"高危漏洞 {summary['high']} 个、中危漏洞 {summary['medium']} 个、低危漏洞 {summary['low']} 个。"
-        f"已确认漏洞 {confirmed_count} 个，假设性发现 {hypothesis_count} 个。")
+        f"已确认 {confirmed_count} 个，待验证 {hypothesis_count} 个，验证未成功 {failed_count} 个。")
 
     # 风险等级统计表格
     add_heading_custom(doc, '1.1 风险等级统计', level=2, color=COLORS['text_gray'])
@@ -528,11 +571,26 @@ def generate_report(data, logo_path, output_path):
         severity = finding['severity']
         severity_label = SEVERITY_LABELS.get(severity, severity)
         severity_color = SEVERITY_COLORS.get(severity, COLORS['info'])
+        
+        # 根据审计阶段和实际 result 确定状态
+        status = get_finding_status(finding, audit_stage)
+        status_labels = {
+            'CONFIRMED': '已确认',
+            'HYPOTHESIS': '待验证',
+            'FAILED': '验证未成功'
+        }
+        status_label = status_labels.get(status, status)
+        status_colors_map = {
+            'CONFIRMED': COLORS['critical'],  # 红色
+            'HYPOTHESIS': COLORS['info'],     # 灰色
+            'FAILED': '#808080'               # 灰色
+        }
+        status_color = status_colors_map.get(status, COLORS['info'])
 
         row.cells[0].text = str(idx)
         row.cells[1].text = finding['title']
         row.cells[2].text = severity_label
-        row.cells[3].text = finding['status']
+        row.cells[3].text = status_label
         row.cells[4].text = audit_method
         
         for cell_idx, cell in enumerate(row.cells):
@@ -546,6 +604,13 @@ def generate_report(data, logo_path, output_path):
         
         set_cell_shading(row.cells[2], severity_color[1:])
         for paragraph in row.cells[2].paragraphs:
+            for run in paragraph.runs:
+                run.font.color.rgb = RGBColor(255, 255, 255)
+                run.font.bold = True
+        
+        # 状态列背景色
+        set_cell_shading(row.cells[3], status_color[1:])
+        for paragraph in row.cells[3].paragraphs:
             for run in paragraph.runs:
                 run.font.color.rgb = RGBColor(255, 255, 255)
                 run.font.bold = True
@@ -566,6 +631,7 @@ def generate_report(data, logo_path, output_path):
     add_heading_custom(doc, '二、漏洞详情', level=1)
 
     findings = data['findings']
+    audit_stage = data['audit'].get('stage', 'static_audit')
     for idx, finding in enumerate(findings, 1):
         add_heading_custom(doc, f"2.{idx} {finding['title']}", level=2)
 
@@ -576,6 +642,15 @@ def generate_report(data, logo_path, output_path):
         severity = finding['severity']
         severity_label = SEVERITY_LABELS.get(severity, severity)
         severity_color = SEVERITY_COLORS.get(severity, COLORS['info'])
+        
+        # 根据审计阶段和实际 result 确定状态
+        status = get_finding_status(finding, audit_stage)
+        status_labels = {
+            'CONFIRMED': '已确认',
+            'HYPOTHESIS': '待验证',
+            'FAILED': '验证未成功'
+        }
+        status_label = status_labels.get(status, status)
 
         run = info_para.add_run(f"  {severity_label}  ")
         run.font.size = Pt(11)
@@ -589,7 +664,7 @@ def generate_report(data, logo_path, output_path):
         run = info_para.add_run(
             f"    漏洞编号: {finding['vuln_id']}    "
             f"DKTSS评分: {finding.get('dktss_score', 'N/A')}    "
-            f"状态: {finding['status']}"
+            f"状态: {status_label}"
         )
         run.font.size = Pt(10)
         run.font.color.rgb = RGBColor(

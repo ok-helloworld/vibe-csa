@@ -7,16 +7,16 @@
     "target": {
       "source_path": "<SOURCE_PATH>",
       "base_url": "<BASE_URL>",
-      "environment": "<test|production|unknown>",
+      "environment": "<unknown|local|dev|test|staging|production>",
       "auth_context": {
         "required": true,
-        "credential_source": "<user_provided|auto_extracted|unknown>",
+        "credential_source": "<none|user_provided|browser_extracted|unknown>",
         "roles": ["<admin|editor|viewer>"]
       }
     },
-    "stage": "<static_audit|dynamic_verification|complete>",
+    "stage": "<static_audit|dynamic_verification|report>",
     "mode": "<quick|standard|deep>",
-    "scope": "<full|partial>",
+    "scope": "<full|partial|incremental>",
     "tool_versions": {},
     "coverage_summary": {
       "tier1_pct": 100,
@@ -30,7 +30,7 @@
       "start": "<YYYY-MM-DD>",
       "end": "<YYYY-MM-DD>"
     },
-    "language": ["<php|java|python|go|javascript>"],
+    "language": ["<php|java|python|go|javascript|typescript>"],
     "summary": {
       "total": 0,
       "critical": 0,
@@ -57,9 +57,9 @@
   "findings": [
     {
       "title": "<漏洞标题>",
-      "vuln_type": "<代码执行|文件上传|任意文件删除|SQL注入|XSS|SSRF|认证绕过>",
-      "category": "<injection|ssrf_file|auth|info>",
-      "x_category_label": "<注入类|请求伪造与文件操作类|认证类|信息泄露类>",
+      "vuln_type": "<代码执行|文件上传|任意文件删除|SQL注入|XSS|SSRF|认证绕过|反序列化|业务逻辑缺陷|信息泄露|依赖漏洞|安全配置错误>",
+      "category": "<injection|auth|ssrf_file|deserialization|business_logic|info_crypto|dependency|configuration|other>",
+      "x_category_label": "<注入类|认证类|请求伪造与文件操作类|反序列化类|业务逻辑类|信息泄露与密码学类|依赖与供应链类|配置错误类|其他>",
       "x_signature_type": "<cmd-exec|upload-marker|file-delete-effect|sql-error|xss-reflection>",
       "cwe": "<CWE-ID, e.g. CWE-94|CWE-434|CWE-22|CWE-89>",
       "severity": "<critical|high|medium|low>",
@@ -69,11 +69,11 @@
       "impact": "<漏洞利用后的业务影响和潜在升级路径>",
       "location": {
         "file": "<相对路径，如 cms/includes/functions.inc.php>",
-        "line_start": 0,
-        "line_end": 0,
+        "line_start": 1,
+        "line_end": 1,
         "function": "<函数名或代码分支描述>",
         "route": "<URL路由，如 /admin.php?mode=filemanager>",
-        "http_method": "<GET|POST|GET|POST>",
+        "http_method": "<GET|POST|PUT|DELETE|PATCH>",
         "snippet": "<关键代码片段>"
       },
       "analysis": {
@@ -87,7 +87,7 @@
           "description": "<危险函数的调用描述>",
           "location": "<file:line 范围>",
           "sink_type": "<代码执行|文件写入|文件删除|数据库查询|命令执行>",
-          "dangerous_api": "<eval|copy|unlink|system|query>"
+          "dangerous_api": "<eval|system|exec|copy|unlink|query|requests.get>"
         },
         "data_flow": [
           {
@@ -100,12 +100,12 @@
         ],
         "attack_surface": {
           "entrypoint": "<攻击入口描述>",
-          "http_method": "<GET|POST>",
+          "http_method": "<GET|POST|PUT|DELETE|PATCH>",
           "route": "<URL路由>",
           "parameters": ["<参数1>", "<参数2>"],
           "auth_required": true,
-          "required_role": "<authenticated_admin_user|page editor or admin>",
-          "content_type": "<application/x-www-form-urlencoded|multipart/form-data>"
+          "required_role": "<authenticated_admin_user|editor|admin|anonymous>",
+          "content_type": "<application/x-www-form-urlencoded|multipart/form-data|application/json|text/plain>"
         },
         "preconditions": [
           "<前置条件1>",
@@ -115,13 +115,13 @@
           {
             "control": "<安全控制名称>",
             "location": "<file:line>",
-            "assessment": "<present_effective|present_bypassable|absent>",
+            "assessment": "<missing|present_bypassable|present_effective|unknown>",
             "bypass_notes": "<绕过说明>"
           }
         ],
         "bypass_strategy": {
           "feasible": true,
-          "difficulty": "<low|medium|high>",
+          "difficulty": "<none|low|medium|high|unknown>",
           "ideas": [
             {
               "technique": "<绕过技术名称>",
@@ -146,7 +146,7 @@
         }
       },
       "static_evidence": {
-        "agent": "<Agent-Injection|Agent-SSRF-File|Agent-Auth|Agent-Info>",
+        "agent": "<Agent-Injection|Agent-SSRF-File|Agent-Auth|Agent-Info|Agent-Deserialization|Agent-Business-Logic|Agent-Dependency|Agent-Config>",
         "confidence_reason": "<置信度理由>",
         "evidence_refs": {
           "EVID_ENTRY": "<file:line>",
@@ -156,7 +156,7 @@
         "reviewed_files": [
           {
             "file": "<文件名>",
-            "role": "<entrypoint|source|propagation|sink|control>",
+            "role": "<source|propagation|sink|control|entrypoint|related>",
             "summary": "<审查摘要>"
           }
         ],
@@ -178,15 +178,15 @@
         "after": "<修复后代码>"
       },
       "vuln_id": "FINDING-<XXX>",
-      "status": "<CONFIRMED|HYPOTHESIS|REJECTED>",
+      "status": "<CONFIRMED|HYPOTHESIS>",
       "evidence_level": "<L0|L1|L2|L3>",
-      "finding_class": "<code_only|runtime_verified|manual_review>",
-      "x_finding_class": "<code_only|runtime_verified|manual_review>",
+      "finding_class": "<code_only|runtime_verified>",
+      "x_finding_class": "<code_only|runtime_verified>",
       "dynamic_verification": {
-        "state": "<verified|not_started|failed|partial>",
+        "state": "<not_started|in_progress|verified|failed|blocked|skipped>",
         "attempts": [],
         "final_evidence": {
-          "proof_type": "<command_output|sensitive_data|file_access|none>",
+          "proof_type": "<none|http_signal|business_state_change|file_access|command_output|oob_callback|sensitive_data>",
           "summary": "",
           "snippets": []
         },
@@ -194,11 +194,11 @@
       },
       "poc": {
         "steps": [],
-        "result": "<success|pending|failure>",
+        "result": "<pending|success|failure|timeout|skipped|auth_failed>",
         "evidence": "<PoC证据描述。静态审计阶段：静态代码审计阶段未执行动态验证，PoC 请求和响应留空。>",
         "failure_log": []
       },
-      "tracking_completeness": "<PARTIAL|COMPLETE|NONE>"
+      "tracking_completeness": "<FULL|PARTIAL|UNRESOLVED>"
     }
   ]
 }

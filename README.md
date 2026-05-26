@@ -1,12 +1,12 @@
 # Vibe CSA
 
-> 当前版本：v1.0.0
+> 当前版本：v1.0.1
 
 Vibe CSA (Code Security Audit) ，是一款基于 AI Agent 架构的代码审计工具，采用多 Agent 并行执行架构，用“上帝视角”静态审计源代码，用“实战模拟”动态验证漏洞，保证了web漏洞挖掘的全面性和准确性，输出稳定可靠的安全报告，提供可落地整改建议。
 
 项目特点：
 - `Stage 1`：基于源码和语言插件做静态审计
-- `Stage 2`：基于静态 finding 做单漏洞动态验证
+- `Stage 2`：基于静态 finding 做单漏洞动态验证，支持最多 3 个 `dynamic-verifier` 并行处理
 - `Stage 3`：生成标准 JSON，并导出 HTML / Word 报告
 
 ## 目录
@@ -33,7 +33,7 @@ Vibe CSA (Code Security Audit) ，是一款基于 AI Agent 架构的代码审计
 - `scripts/`：辅助脚本，负责合并结果、初始化 PoC、验证请求、校验和导出报告
 
 使用AI智能体，加载此技能，配合本技能包含的检测脚本
-- 优先推荐编程类智能体：Trae、Qoder、Claude Code、Codex
+- 优先推荐编程类智能体：Qoder、Trae、Claude Code、Codex 等
 - 次选：龙虾类智能体
 
 
@@ -64,7 +64,9 @@ pip install -r vibe-csa/scripts/requirements.txt
 
 ### 多Agent智能体
 
-- 参考`sub_agent.md`创建多智能体，可有效提高代码审计、漏洞验证的速度和质量
+创建多智能体，可有效提高代码审计、漏洞验证的速度和质量
+- 自动创建子 Agent 可参考 `core/multi-agent.md`
+- 手工创建子 Agent 提示词模板可参考 `sub_agent.md`
 
 ## 执行步骤
 
@@ -74,7 +76,7 @@ pip install -r vibe-csa/scripts/requirements.txt
 
 ### 2. 动态验证
 
-可选。根据静态结果生成 PoC，并在目标环境中验证漏洞是否真实存在，输出 `workDir/dynamic-verified.json`。
+可选。根据静态结果生成 PoC，在目标环境中验证漏洞是否真实存在；Stage 2 会先生成 `workDir/findings/FINDING-*.poc.json` 和 `workDir/dynamic-state.json`，再由并行 `dynamic-verifier` 逐条验证，最终输出 `workDir/dynamic-verified.json`。
 
 ### 3. 最终报告
 
@@ -92,7 +94,7 @@ pip install -r vibe-csa/scripts/requirements.txt
 - `static-info`：信息泄露、加密、配置问题
 
 动态验证 agent：
-- `dynamic-verifier`：只处理单个 finding 的 PoC 构造与验证
+- `dynamic-verifier`：一次只处理单个 finding，按 `workDir/dynamic-state.json` 队列领取任务并回写对应的 `workDir/findings/FINDING-*.poc.json`
 
 为保证效果，建议您在 AI Agent 平台上创建这些子 Agent，建议先参考根目录下的 `sub_agent.md`。该文档整理了各子 Agent 的英文标识名、调用时机，以及可直接复制使用的提示词模板。
 
@@ -101,7 +103,7 @@ pip install -r vibe-csa/scripts/requirements.txt
 ### 静态审计提示词
 
 ```text
-使用 `vibe-csa` 技能，对当前目录下的源码做静态审计，参考项目语言插件规则，按`multi-agent.md`中的推荐agent分工，每个agent独立生成 `workDir/agent-results/*.json`(格式需严格参考`references/agent-result-example.json`样例)， 最后使用`merge_static_results.py`脚本，汇总multi-agent的结果，生成`workDir/static-merged.json`
+使用 `vibe-csa` 技能，对当前目录下的源码做静态审计，按 `core/static-multi-agent.md` 中的推荐 agent 分工，所有 agent 并发执行，每个 agent 独立生成 `workDir/agent-results/*.json` ，最后使用 `merge_static_results.py` 脚本汇总结果，生成 `workDir/static-merged.json`
 
 将最终JSON报告生成 HTML 和 Word 报告：使用 `scripts/vibe_csa_html.py` 和 `scripts/vibe_csa_report.py` 脚本导出稳定的报告结果。
 ```
@@ -110,16 +112,17 @@ pip install -r vibe-csa/scripts/requirements.txt
 
 ```text
 阶段一：静态审计 
-使用 `vibe-csa` 技能，对当前目录下的源码做静态审计，参考项目语言插件规则，按`multi-agent.md`中的推荐agent分工，所有agent并发执行，每个agent独立生成 `workDir/agent-results/*.json`(格式需严格参考`references/agent-result-example.json`样例)， 最后使用`merge_static_results.py`脚本，汇总multi-agent的结果，生成`workDir/static-merged.json`
+使用 `vibe-csa` 技能，对当前目录下的源码做静态审计，按 `core/static-multi-agent.md` 中的推荐 agent 分工，所有 agent 并发执行，每个 agent 独立生成 `workDir/agent-results/*.json` ，最后使用 `merge_static_results.py` 脚本汇总结果，生成 `workDir/static-merged.json`
 
 阶段二：动态漏洞验证
-基于 `workDir/static-merged.json` 对严重/高危/抽样中危的 finding 做动态验证。先使用`scripts/prepare_dynamic_pocs.py` 生成最小骨架`workDir/findings/*.poc.json`，再根据实际场景，完善finding文件和PoC内容，最后使用`verify_vuln.py` 合并 finding文件，生成`workDir/dynamic-verified.json`
+只对静态审计到的“严重/高危/抽样中危”的漏洞进行动态验证：先使用 `scripts/prepare_dynamic_pocs.py` 同时生成 `workDir/findings/FINDING-*.poc.json` 和 `workDir/dynamic-state.json`，再根据 `core/dynamic-multi-agent.md` 创建 `3` 个 `dynamic-verifier` 子 Agent 并发执行漏洞验证，基于`dynamic-state.json` 的验证队列，逐条验证并回写对应 finding 文件；全部完成后，再使用脚本生成汇总生成 `workDir/dynamic-verified.json`
 
 目标 URL: http://127.0.0.1:8056/admin.php?p=/Index/ucenter
 授权声明: 已获得书面授权，授权范围包含该目标全部接口和页面
 测试账号（1个）:
 账号：admin
 密码：123456
+登录方式：你调用脚本打开浏览器，我手动输入账号密码登录
 
 安全测试铁律：允许对测试过程中自己创建的数据、自己上传的文件、自己插入的记录做删除、更新、清理操作，以便验证删除/编辑/恢复/回收类漏洞；禁止对原始业务数据、他人数据、生产数据做破坏性操作。允许上传文件进行文件上传测试。
 

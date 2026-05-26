@@ -1,8 +1,8 @@
 {
     "vuln_id": "FINDING-001",
     "title": "<漏洞名称>",
-    "vuln_type": "<代码执行|文件上传|任意文件删除|SQL注入|XSS|SSRF|认证绕过>",
-    "category": "<injection|ssrf_file|auth|info>",
+    "vuln_type": "<代码执行|文件上传|任意文件删除|SQL注入|XSS|SSRF|认证绕过|反序列化|业务逻辑缺陷|信息泄露|依赖漏洞|安全配置错误>",
+    "category": "<injection|auth|ssrf_file|deserialization|business_logic|info_crypto|dependency|configuration|other>",
     "status": "<HYPOTHESIS|CONFIRMED>",
     "confidence": "<high|medium|low>",
     "x_signature_type": "<cmd-exec|upload-marker|file-delete-effect|sql-error|xss-reflection>",
@@ -14,11 +14,11 @@
     "description": "<漏洞描述，包括触发条件、数据流和影响面>",
     "location": {
         "file": "<相对路径，如 cms/includes/functions.inc.php>",
-        "line_start": 0,
-        "line_end": 0,
+        "line_start": 1,
+        "line_end": 1,
         "function": "<函数名或代码分支描述>",
         "route": "<URL路由，如 /admin.php?mode=filemanager>",
-        "http_method": "<GET|POST|GET|POST>",
+        "http_method": "<GET|POST|PUT|DELETE|PATCH>",
         "snippet": "<关键代码片段>"
     },
     "analysis": {
@@ -32,7 +32,7 @@
           "description": "<危险函数的调用描述>",
           "location": "<file:line 范围>",
           "sink_type": "<代码执行|文件写入|文件删除|数据库查询|命令执行>",
-          "dangerous_api": "<eval|copy|unlink|system|query>"
+          "dangerous_api": "<eval|system|exec|copy|unlink|query|requests.get>"
         },
         "data_flow": [
           {
@@ -45,12 +45,12 @@
         ],
         "attack_surface": {
           "entrypoint": "<攻击入口描述>",
-          "http_method": "<GET|POST>",
+          "http_method": "<GET|POST|PUT|DELETE|PATCH>",
           "route": "<URL路由>",
           "parameters": ["<参数1>", "<参数2>"],
           "auth_required": true,
-          "required_role": "<authenticated_admin_user|page editor or admin>",
-          "content_type": "<application/x-www-form-urlencoded|multipart/form-data>"
+          "required_role": "<authenticated_admin_user|editor|admin|anonymous>",
+          "content_type": "<application/x-www-form-urlencoded|multipart/form-data|application/json|text/plain>"
         },
         "preconditions": [
           "<前置条件1>",
@@ -60,13 +60,13 @@
           {
             "control": "<安全控制名称>",
             "location": "<file:line>",
-            "assessment": "<present_effective|present_bypassable|absent>",
+            "assessment": "<missing|present_bypassable|present_effective|unknown>",
             "bypass_notes": "<绕过说明>"
           }
         ],
         "bypass_strategy": {
           "feasible": true,
-          "difficulty": "<low|medium|high>",
+          "difficulty": "<none|low|medium|high|unknown>",
           "ideas": [
             {
               "technique": "<绕过技术名称>",
@@ -91,7 +91,7 @@
         }
     },
     "static_evidence": {
-        "agent": "<Agent-Injection|Agent-SSRF-File|Agent-Auth|Agent-Info>",
+        "agent": "<Agent-Injection|Agent-SSRF-File|Agent-Auth|Agent-Info|Agent-Deserialization|Agent-Business-Logic|Agent-Dependency|Agent-Config>",
         "confidence_reason": "<置信度理由>",
         "evidence_refs": {
           "EVID_ENTRY": "<file:line>",
@@ -101,7 +101,7 @@
         "reviewed_files": [
           {
             "file": "<文件名>",
-            "role": "<entrypoint|source|propagation|sink|control>",
+            "role": "<source|propagation|sink|control|entrypoint|related>",
             "summary": "<审查摘要>"
           }
         ],
@@ -114,28 +114,28 @@
         }
     },
     "dynamic_verification": {
-        "state": "<verified|not_started|failed|partial>",
+        "state": "<not_started|in_progress|verified|failed|blocked|skipped>",
         "attempts": [
             {
                 "attempt": 1,
                 "payload_strategy": "<PoC构造策略>",
                 "request_ref": "poc.steps[0].request",
-                "response_ref": "poc.steps[1].response",
-                "result": "<success|failure>",
+                "response_ref": "poc.steps[0].response",
+                "result": "<success|failure|timeout|auth_failed|blocked>",
                 "evidence_snippet": "<关键证据片段>",
                 "next_action": "<下一步动作>"
             }
         ],
         "final_evidence": {
-            "proof_type": "<command_output|sensitive_data|file_access|none>",
+            "proof_type": "<none|http_signal|business_state_change|file_access|command_output|oob_callback|sensitive_data>",
             "summary": "<最终证据摘要>",
             "snippets": [
                 {
                     "step": 1,
-                    "source": "<response._evidence_match|response.body>",
+                    "source": "<response._evidence_match|response.body|response.raw|response.headers>",
                     "snippet": "<证据片段>",
                     "signature_type": "<与 x_signature_type 一致>",
-                    "strength": "<L0|L1|L2|L3>"
+                    "strength": "<L1|L2|L3>"
                 }
             ]
         },
@@ -146,7 +146,7 @@
             {
                 "name": "<步骤名称>",
                 "request": {
-                    "method": "<GET|POST>",
+                    "method": "<GET|POST|PUT|DELETE|PATCH>",
                     "url": "<完整URL>",
                     "headers": {
                         "User-Agent": "python-requests/2.32.5",
@@ -154,7 +154,7 @@
                         "Accept": "*/*",
                         "Connection": "keep-alive",
                         "Cookie": "<SESSION_COOKIE>",
-                        "Content-Type": "<请求Content-Type>"
+                        "Content-Type": "<application/x-www-form-urlencoded|multipart/form-data|application/json|text/plain>"
                     },
                     "params": {},
                     "body": "<请求体>",
@@ -184,14 +184,14 @@
                         {
                             "type": "<signature_type>",
                             "snippet": "<匹配到的证据>",
-                            "strength": "<L0|L1|L2|L3>"
+                            "strength": "<L1|L2|L3>"
                         }
                     ]
                 },
                 "step": 1
             }
         ],
-        "result": "<success|pending|failure>",
+        "result": "<pending|success|failure|timeout|skipped|auth_failed>",
         "evidence": "<PoC证据描述>",
         "failure_log": []
     },

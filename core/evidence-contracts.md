@@ -1,7 +1,5 @@
 # 证据契约（Evidence Contracts）
 
-继承自 PHP-Code-Audit-Skill 的 EVID_* 机制并泛化到所有语言。核心思想：每种漏洞类型定义必需的证据点，缺少证据时强制降级。
-
 ## 证据点命名
 
 ```

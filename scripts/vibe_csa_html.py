@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 vibe-csa HTML Report Generator
 vibe-csa v3 JSON → HTML 安全审计报告
@@ -42,10 +43,10 @@ def sev_color(sev):
     return {"critical":"#e53e3e","high":"#dd6b20","medium":"#d69e2e","low":"#38a169"}.get(sev.lower(),"#38a169")
 
 def status_class(s):
-    return {"CONFIRMED":"status-confirmed","HYPOTHESIS":"status-hypothesis"}.get(s.upper(),"status-hypothesis")
+    return {"CONFIRMED":"status-confirmed","HYPOTHESIS":"status-hypothesis","FAILED":"status-failed"}.get(s.upper(),"status-hypothesis")
 
 def status_label(s):
-    return {"CONFIRMED":"已确认","HYPOTHESIS":"待验证"}.get(s.upper(), s)
+    return {"CONFIRMED":"已确认","HYPOTHESIS":"待验证","FAILED":"验证未成功"}.get(s.upper(), s)
 
 def dv_state_class(s):
     return {"verified":"dv-verified","failed":"dv-failed","blocked":"dv-blocked",
@@ -153,14 +154,22 @@ def build_cover(audit, findings):
     hypothesis = sum(1 for f in findings if f.get("status") == "HYPOTHESIS")
     
     # 动态验证统计
-    runtime_verified = 0
-    code_only = 0
+    runtime_verified = 0  # 验证成功
+    verification_failed = 0  # 验证失败
+    pending_only = 0  # 仅静态审计(pending)
     for f in findings:
         dyn = f.get("dynamic_verification", {})
-        if dyn.get("state") == "verified":
+        state = dyn.get("state", "")
+        poc_result = f.get("poc", {}).get("result", "pending")
+        if state == "verified":
             runtime_verified += 1
+        elif state == "failed" or poc_result == "failure":
+            verification_failed += 1
         else:
-            code_only += 1
+            pending_only += 1
+    
+    # 动态验证总数 = 验证成功 + 验证失败
+    dynamic_verification_total = runtime_verified + verification_failed
 
     # donut chart data
     donut_segments = []
@@ -231,10 +240,10 @@ def build_cover(audit, findings):
       <div class="cover-sev-legend">{sev_items}</div>
     </div>
     <div class="cover-stat-row">
-      <div class="cstat"><span class="cstat-v">{confirmed}</span><span class="cstat-l">已确认</span></div>
-      <div class="cstat"><span class="cstat-v">{hypothesis}</span><span class="cstat-l">待验证</span></div>
-      <div class="cstat"><span class="cstat-v">{runtime_verified}</span><span class="cstat-l">动态验证</span></div>
-      <div class="cstat"><span class="cstat-v">{code_only}</span><span class="cstat-l">仅代码级</span></div>
+      <div class="cstat"><span class="cstat-v">{runtime_verified}</span><span class="cstat-l">已确认</span></div>
+      <div class="cstat"><span class="cstat-v">{pending_only}</span><span class="cstat-l">待验证</span></div>
+      <div class="cstat"><span class="cstat-v">{dynamic_verification_total}</span><span class="cstat-l">动态验证</span></div>
+      <div class="cstat"><span class="cstat-v">{verification_failed}</span><span class="cstat-l">验证未成功</span></div>
     </div>
   </div>
 </div>"""
@@ -262,14 +271,22 @@ def build_summary(audit, findings):
     hypothesis = sum(1 for f in findings if f.get("status") == "HYPOTHESIS")
     
     # 动态验证统计
-    runtime_verified = 0
-    unverified = 0
+    runtime_verified = 0  # 验证成功
+    verification_failed = 0  # 验证失败
+    pending_only = 0  # 仅静态审计(pending)
     for f in findings:
         dyn = f.get("dynamic_verification", {})
-        if dyn.get("state") == "verified":
+        state = dyn.get("state", "")
+        poc_result = f.get("poc", {}).get("result", "pending")
+        if state == "verified":
             runtime_verified += 1
+        elif state == "failed" or poc_result == "failure":
+            verification_failed += 1
         else:
-            unverified += 1
+            pending_only += 1
+    
+    # 动态验证总数 = 验证成功 + 验证失败
+    dynamic_verification_total = runtime_verified + verification_failed
 
     # severity bars
     sev_bars = ""
@@ -334,10 +351,10 @@ def build_summary(audit, findings):
       <div class="sumcard">
         <div class="sumcard-title">发现状态概览</div>
         <div class="status-overview">
-          <div class="so-item so-open"><span class="so-val">{0}</span><span class="so-lbl">待处理</span></div>
-          <div class="so-item so-unverified"><span class="so-val">{unverified}</span><span class="so-lbl">未验证</span></div>
-          <div class="so-item so-confirmed"><span class="so-val">{confirmed}</span><span class="so-lbl">已确认</span></div>
-          <div class="so-item so-rv"><span class="so-val">{runtime_verified}</span><span class="so-lbl">动态验证</span></div>
+          <div class="so-item so-confirmed"><span class="so-val">{runtime_verified}</span><span class="so-lbl">已确认</span></div>
+          <div class="so-item so-pending"><span class="so-val">{pending_only}</span><span class="so-lbl">待验证</span></div>
+          <div class="so-item so-rv"><span class="so-val">{dynamic_verification_total}</span><span class="so-lbl">动态验证</span></div>
+          <div class="so-item so-failed"><span class="so-val">{verification_failed}</span><span class="so-lbl">验证未成功</span></div>
         </div>
       </div>
     </div>
@@ -355,7 +372,20 @@ def build_toc(findings):
     for f in findings:
         vid   = f.get("vuln_id","")
         sev   = f.get("severity","low")
-        status = f.get("status","HYPOTHESIS")
+        
+        # 根据动态验证结果确定状态
+        dyn = f.get("dynamic_verification", {})
+        poc = f.get("poc", {})
+        dyn_state = dyn.get("state", "")
+        poc_result = poc.get("result", "pending")
+        
+        if dyn_state == "verified":
+            status = "CONFIRMED"
+        elif dyn_state == "failed" or poc_result == "failure":
+            status = "FAILED"
+        else:
+            status = f.get("status", "HYPOTHESIS")
+        
         slug  = f"finding-{e(vid)}"
         rows += f"""<tr class="toc-row" onclick="jumpTo('{slug}')">
           <td><span class="toc-id">{e(vid)}</span></td>
@@ -391,6 +421,16 @@ def build_finding(f, idx, audit_stage="static_audit"):
     remediation = f.get("remediation",{})
     fix      = f.get("fix",{})
     slug     = f"finding-{e(vid)}"
+    
+    # 根据动态验证结果确定状态
+    dyn_state = dyn.get("state", "")
+    poc_result = poc.get("result", "pending")
+    if dyn_state == "verified":
+        status = "CONFIRMED"
+    elif dyn_state == "failed" or poc_result == "failure":
+        status = "FAILED"
+    else:
+        status = f.get("status", "HYPOTHESIS")
     
     is_static_stage = (audit_stage == "static_audit")
 
@@ -446,6 +486,7 @@ def build_finding(f, idx, audit_stage="static_audit"):
         evid_html = f'<table class="evid-tbl"><thead><tr><th>证据标识</th><th>位置</th></tr></thead><tbody>{rows}</tbody></table>'
 
     # ── PoC steps
+    poc_result = poc.get("result", "pending")
     poc_steps_html = ""
     for step in poc.get("steps",[]):
         req  = step.get("request",{})
@@ -460,6 +501,18 @@ def build_finding(f, idx, audit_stage="static_audit"):
         elapsed = resp.get("_meta",{}).get("elapsed_ms","")
         status_c = resp_status_class(resp.get("status",""))
         
+        # pending: 不显示REQUEST/RESPONSE内容
+        if poc_result == "pending":
+            poc_steps_html += f"""<div class="poc-step">
+              <div class="poc-step-hdr">
+                <span class="poc-snum">Step {step.get("step","")}</span>
+                <span class="poc-sname">{e(step.get("name",""))}</span>
+              </div>
+              <p class="muted">静态审计阶段，暂无动态验证的REQUEST/RESPONSE内容</p>
+            </div>"""
+            continue
+        
+        # failure及其他结果：显示REQUEST/RESPONSE内容
         req_display = req.get("raw", "")
         resp_display = resp.get("raw", "")
         has_req_raw = bool(req_display)
@@ -809,8 +862,10 @@ body {
 .so-item .so-lbl { font-size:11px; }
 .so-open      { background:#fff8ec; border-color:#f6c26e; } .so-open .so-val      { color:var(--sh); }
 .so-unverified{ background:#f9f0ff; border-color:#c4a8f0; } .so-unverified .so-val{ color:#7c3aed; }
-.so-confirmed { background:#e8f5fe; border-color:#90c8f0; } .so-confirmed .so-val { color:#1a6bc4; }
+.so-confirmed { background:#fff0f0; border-color:var(--sc); } .so-confirmed .so-val { color:var(--sc); }
 .so-rv        { background:#f0fff4; border-color:#9ae6b4; } .so-rv .so-val        { color:var(--sl); }
+.so-pending   { background:#fffbec; border-color:#f6c26e; } .so-pending .so-val   { color:var(--sm); }
+.so-failed    { background:#f3f7fb; border-color:var(--border); } .so-failed .so-val  { color:var(--text3); }
 
 /* ── TOC TABLE ── */
 .toc-table { width:100%; border-collapse:collapse; background:var(--surf1); box-shadow:var(--shadow); border-radius:var(--r); overflow:hidden; }
@@ -830,8 +885,9 @@ body {
 .sev-high     { background:#fff4ed; color:var(--sh); border:1px solid var(--sh); }
 .sev-medium   { background:#fffbec; color:var(--sm); border:1px solid var(--sm); }
 .sev-low      { background:#f0fff4; color:var(--sl); border:1px solid var(--sl); }
-.status-confirmed  { background:#e6f4ff; color:#1a6bc4; border:1px solid #90c8f0; }
+.status-confirmed  { background:#fff0f0; color:var(--sc); border:1px solid var(--sc); }
 .status-hypothesis { background:#fffbec; color:#92600a; border:1px solid #f6c26e; }
+.status-failed     { background:#f3f7fb; color:var(--text3); border:1px solid var(--border); }
 .conf-high   { color:var(--sl); font-weight:700; } .conf-medium { color:var(--sm); font-weight:700; } .conf-low { color:var(--sc); font-weight:700; }
 
 /* ── FINDING CARD ── */

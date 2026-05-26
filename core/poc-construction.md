@@ -1,4 +1,4 @@
-﻿# Stage 2 PoC 构造协议
+# Stage 2 PoC 构造协议
 
 动态验证 Agent 必须先从静态审计 JSON 推导 PoC，再发送请求。禁止脱离审计结果手写猜测型 PoC。
 
@@ -16,14 +16,17 @@ PoC 构造按以下字段取证：
 
 ## 固定步骤
 
-1. 动态验证 Agent 读取 `workDir/findings/FINDING-xxx.poc.json`。
-2. 回读源码，确认自动生成的 `poc.steps[].request` 是否匹配真实路由和参数。
-3. 必要时只修改 request、extract、payload，不写 response。
-4. 调用 `verify_vuln.py` 发送请求并写入真实 response。
-5. 分析 response：
-   - 证据充分：设置 `poc.result="success"`、`status="CONFIRMED"`、`finding_class="runtime_verified"`。
-   - 证据不足：根据源码和响应补充下一步 request 或写入 `failure_log[]`。
-   - 失败：保留请求、响应和失败原因，不删除尝试过程。
+1. 动态验证 Agent 读取 `workDir/findings/FINDING-*.poc.json`（例如 `workDir/findings/FINDING-high-001.poc.json`）
+2. 判断此漏洞在利用时是否要加载登录凭据 `workDir/sessions/creds.json`
+3. 用 `curl`、Python `requests`、浏览器自动化或其他合适工具构造并发送真实 PoC 请求；最终写回 finding 时，必须按统一契约回填标准化的 `request` / `response` / `response._evidence_match`
+  - 若失败 → 回读源码，改 payload / 改参数 / 改认证上下文 / 尝试绕过，重试至少 **3 轮**，每一轮都要：
+    - 读 response
+    - 如果失败，看响应读源码分析为什么失败
+    - 改策略，再发
+  - 若成功 → 确认 response body 中有实质性证据（不只看 HTTP 200，不能虚假编造 response ）
+    - 利用成功的证据充分：设置 `poc.result="success"`、`status="CONFIRMED"`、`finding_class="runtime_verified"`、`dynamic_verification.state="verified"`
+4. 若尝试了3次仍失败
+  - 用户若强调了使用`deep`模式或者"深入的进行漏洞验证”，可参考 `{SKILL_ROOT}/pentest_skills/INDEX.md`，再做1至2次定向增强验证，但不能虚假编造 request/response，不跳出当前 finding 范围
 
 ## 漏洞类型到 PoC 的映射
 
@@ -88,14 +91,22 @@ step 3: 传入命令并在响应中看到 uid=... 或等价命令输出
 - `response._evidence_match[]`：记录 `type/pattern/strength/snippet`。
 - `dynamic_verification.final_evidence`：记录最终证明类型和证据片段。
 
-没有 L2/L3 证据时保持：
+## 成功/失败状态写回口径
 
-```json
-{
-  "status": "HYPOTHESIS",
-  "finding_class": "code_only",
-  "poc": {
-    "result": "failure"
-  }
-}
-```
+- 成功时必须同时更新：
+  - `poc.result="success"`
+  - `status="CONFIRMED"`
+  - `finding_class="runtime_verified"`
+  - `dynamic_verification.state="verified"`
+  - `dynamic_verification.final_evidence.proof_type` 设为非 `none`
+  - `evidence_level` 至少提升到 `L2`；若 `response._evidence_match` 出现 `L3` 命中，则应写为 `L3`
+- 重试过程中必须同步更新：
+  - `dynamic_verification.state="in_progress"`
+  - `dynamic_verification.attempts[]` 为每轮记录 `attempt`、`payload_strategy`、`result`、`request_ref`、`response_ref`、`next_action`
+  - `attempts[].result` 应按真实结果写成 `success|failure|timeout|auth_failed|blocked`
+- 失败结束时必须区分真实失败类型，不要统一写成笼统失败：
+  - 网络或超时问题：`poc.result="timeout"`，`dynamic_verification.state="failed"` 或 `blocked`
+  - 认证失效或登录态不足：`poc.result="auth_failed"`，`dynamic_verification.state="blocked"` 或 `failed`
+  - 目标主动拦截、WAF、风控或实验条件不满足（无法绕过防护时）：保留 `poc.result="failure"`，并将 `attempts[].result` 或 `dynamic_verification.state` 写为 `blocked`
+  - 用户主动跳过、环境不允许继续：`poc.result="skipped"`，`dynamic_verification.state="skipped"`
+- 没有 L2/L3 运行时证据时，不得升级为 `CONFIRMED`；应保持或降回 `HYPOTHESIS + code_only`，并补全 `failure_log[]`、`dynamic_verification.runtime_notes`、`dynamic_verification.final_evidence.proof_type="none"`

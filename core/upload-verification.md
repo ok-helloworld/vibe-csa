@@ -100,8 +100,6 @@ LLM 应按实际框架确定 payload，不可硬套 PHP/JSP 模板。
 | 15 | 压缩包/ZIP slip | 上传 zip 解压时穿越目录 |
 | 16 | 配置文件覆盖 | 写到 webroot 的现有 `index.php` / `home.jsp` 覆盖原文件 |
 
-每条枚举尝试，LLM 用 curl 探索（不计入 verify_vuln.py 重试次数），命中证据则进入 Stage 2 定稿流程。
-
 ### 枚举结果分流
 
 | 结果 | 处理 |

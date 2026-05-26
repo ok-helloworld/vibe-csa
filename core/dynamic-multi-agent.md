@@ -12,7 +12,7 @@
 
 ## Stage 2 动态验证
 
-此阶段为可选。Stage 2 按当前队列中可领取的 `pending` finding 数量，按需启动 `1~3` 个并行的 `dynamic-verifier` agent。子 Agent 不按漏洞等级分组创建，而是统一从 `workDir/dynamic-state.json` 中领取工作；每个 agent 一次只处理一条 finding，并且不会继承静态 agent 的聊天历史。
+此阶段为可选。Stage 2 按当前队列中可领取的 `pending` finding 数量，按需启动 `1~3` 个并行的 `dynamic-verifier` agent。子 Agent 不按漏洞等级分组创建，而是统一从 `workDir/dynamic-state.json` 中领取工作；如队列项已额外写入 `assigned_slot`，则每个子 Agent 只处理分配给自己槽位的任务。每个 agent 一次只处理一条 finding，并且不会继承静态 agent 的聊天历史。
 
 输入举例：
 
@@ -42,8 +42,10 @@ workDir/findings/FINDING-high-001.poc.json
 
 ### 执行流程
 1. 读取 `workDir/dynamic-state.json`，选择 1 条 `findings[].status="pending"` 的队列项。
-   只领取当前 Stage 2 队列中、且不与已运行任务共享相同 `conflict_key` 的 finding。
-2. 领取该任务：将该 finding 更新为 `status="running"`，并写入 `leased_by`、`lease_until`。
+   如果当前子 Agent 已被分配槽位（`assigned_slot=1|2|3`），则只读取 `findings[].assigned_slot` 与自身一致的队列项；若未分配槽位，则从共享队列中选择任务。
+   例如：槽位为 `1` 的子 Agent 只领取 `assigned_slot=1` 的 `pending` 任务。
+   无论是否启用槽位分配，都只领取当前 Stage 2 队列中、且不与已运行任务共享相同 `conflict_key` 的 finding。
+2. 领取该任务时，必须先再次确认该 finding 当前仍为 `status="pending"`，并在同一次状态更新中写入 `status="running"`、`leased_by`、`lease_until`；若写回前发现该 finding 已被其他子 Agent 更新，则放弃当前任务并重新选择下一条可领取的 `pending` finding。
 3. 读取该队列项对应的 `workDir/findings/FINDING-*.poc.json`。
 4. 重新阅读源码，确认路由、HTTP 方法、参数、认证要求、安全控制与绕过点。
 5. 按 `{SKILL_ROOT}/core/poc-construction.md` 构造真实 PoC 请求，使用 `curl`、Python `requests` 或其他合适工具发送真实请求。
@@ -57,21 +59,23 @@ workDir/findings/FINDING-high-001.poc.json
 - 详细运行时证据只写入 `workDir/findings/FINDING-*.poc.json`，不要把完整请求、完整响应、长证据片段写入 `workDir/dynamic-state.json`
 - 如果回填的数据是说明性内容，默认回填中文
 - 若字段含义不清楚，参考 `references/dynamic-init-example.json`
-- `requests` 保留完整数据，`response` 太长时，只保留关键证据片段
-- `dynamic_verification.final_evidence`、`failure_log[]`、`poc.steps[]` 必须按真实结果写回; `poc.result`="success" 或  poc.result`="failure"
+- `dktss_score` 评分取值范围 "0-10"，具体参考 `core/scoring.md`
+- `dynamic_verification.final_evidence`、`failure_log[]`、`poc.steps[]` 必须按真实结果写回
+- `poc.steps.request`、`poc.steps.response` 都需要保留完整请求与响应数据；`request.raw` 或 `response.raw` 若超过4096字节，可保留关键证据片段
+- 漏洞验证成功：`poc.result`="success"，漏洞验证失败或其它情况：poc.result`="failure"
 - 失败时也必须写 `failure_log[]`，记录尝试历史、失败原因和调整过程
-- 单个 finding 完成所有回填后，根据用户需求翻译 `FINDING-*.poc.json` 文件（默认翻译成中文，只需翻译`analysis.verification_plan.steps.action`、`poc.steps.name`、`dynamic_verification`，不修改其它字段）
-- 单个 finding 完成全部回填和翻译后，确保最终 JSON 文件在语法上仍然有效
+- 回填说明性文本字段（如：`analysis.verification_plan.steps.action`、`poc.steps.name`、`dynamic_verification`、`vuln_type`），默认回填为中文，但不得翻译路径、参数名、字段名、payload、状态码、URL 中的技术片段
+- 单个 finding 完成全部回填后，确保最终 JSON 文件在语法上仍然有效
 
 ### `workDir/dynamic-state.json` 状态更新规则
-- 读取任务时，只领取 `findings[].status="pending"` 的队列项
+- 读取任务时，只领取 `findings[].status="pending"` 的队列项；若启用了槽位预分配，则还必须满足 `findings[].assigned_slot` 与当前子 Agent 一致
 - 领取后写为 `status="running"`
 - 完成回填后写为 `status="done"` 或 `status="failed"`
 - 固定状态流转：`pending -> running -> done|failed`
 - 尽量通过 `workDir/dynamic-state.json` 和对应的 finding 文件传递状态与结果，避免把详细验证过程、长响应内容和中间推理回灌主流程上下文
 
 ### 边界与限制
-- 不得编造 `response`、证据片段或成功结果
+- 不得编造 `response`、证据片段或成功结果，`response.raw` 必须是回填真实的响应报文结果
 - 不得修改其他未领取的 finding 文件
 - 不得直接写 `workDir/dynamic-verified.json`
 - 允许清理测试过程中自己创建的数据、文件或记录；禁止修改原始业务数据、他人数据或生产数据

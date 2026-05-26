@@ -87,6 +87,7 @@ step 3: 传入命令并在响应中看到 uid=... 或等价命令输出
 
 必须写入：
 
+- `poc.steps.request`、`poc.steps.response` 都需要保留完整请求与响应数据，`request.raw` 或 `response.raw` 若超过4096字节，可保留关键证据片段
 - `poc.evidence`：引用具体 step 和响应原文片段。
 - `response._evidence_match[]`：记录 `type/pattern/strength/snippet`。
 - `dynamic_verification.final_evidence`：记录最终证明类型和证据片段。

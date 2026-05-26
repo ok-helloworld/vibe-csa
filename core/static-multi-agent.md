@@ -76,6 +76,7 @@ workDir/agent-results/agent-static-deser.json
 - 每个 Agent 在成功发现到漏洞后，一定要在生成的json文件中包含修复建议，json字段包括审计语言：`fix.language`、当前代码片段：`fix.before`、代码修复参考：`fix.after`
 - 每个 Agent 须遵循 `core/coverage-gate.md`，计算代码审计覆盖率，然后将结果更新至 `workDir/agent-results/*.json` 的 `coverage_summary`字段
 - 当真实发现拆分为多个项目时，保留中文标题、中文 `vuln_type`、漏洞分类标签，并优先使用 `{SKILL_ROOT}/references/bug-categories.md` 中的 `vuln_type` 值
+- 回填说明性文本字段（如：`description`、`impact`），默认回填为中文，但不得翻译路径、参数名、字段名、URL 中的技术片段
 - 回写完成后，确保最终 JSON 文件在语法上仍然有效
 
 
@@ -97,6 +98,3 @@ workDir/agent-results/agent-static-deser.json
 | 相同 `file + vuln_type` 且行号接近 | 两者都保留为相关发现 |
 | 不同 agent 给出不同解读 | 两者都保留，交由报告读者或 Stage 2 决定 |
 
-
-### 翻译最终回填报告
-每个 Agent 完成全部回填后，根据用户需求翻译 `workDir/agent-results/*.json` 文件（默认翻译成中文，只需翻译`description`、`impact`，不修改其它字段），翻译后确保最终 JSON 文件在语法上仍然有效

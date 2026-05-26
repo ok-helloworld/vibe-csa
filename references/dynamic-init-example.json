@@ -10,7 +10,7 @@
     "finding_class": "code_only",
     "x_finding_class": "code_only",
     "impact": "<漏洞利用后的业务影响和潜在升级路径>",
-    "dktss_score": 0.0,
+    "dktss_score": 8.0,
     "description": "<漏洞描述，包括触发条件、数据流和影响面>",
     "location": {
         "file": "<相对路径，如 cms/includes/functions.inc.php>",

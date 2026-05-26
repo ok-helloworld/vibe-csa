@@ -6,7 +6,7 @@
   "x_category_label": "注入类",
   "x_signature_type": "cmd-exec",
   "x_unique_marker": "VIBECSA-FINDING001",
-  "x_example_note": "这是执行 verify_vuln.py 后的结构样例，目标、Cookie、响应均为示例数据；不要当作真实目标验证结果。",
+  "x_example_note": "这是执行漏洞验证后的结构样例，目标、Cookie、响应均为示例数据；不要当作真实目标验证结果。",
   "cwe": "CWE-94",
   "severity": "high",
   "confidence": "high",
@@ -107,7 +107,7 @@
       ],
       "success_criteria": [
         "响应体命中 cmd-exec L3 签名。",
-        "poc.steps[].request.raw 和 response.raw 均由 verify_vuln.py 写入。"
+        "poc.steps[].request.raw 和 response.raw 均由真实漏洞验证写入。"
       ]
     }
   },
@@ -175,7 +175,7 @@
         }
       ]
     },
-    "runtime_notes": "verify_vuln.py 已发送最终两步请求并写回完整 request/response。"
+    "runtime_notes": "已发送最终两步请求并写回 request/response。"
   },
   "poc": {
     "steps": [

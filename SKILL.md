@@ -3,7 +3,7 @@ name: vibe-csa
 description: "Vibe CSA (Code Security Audit)，白盒代码安全审计能力，三阶段工作流程：静态代码审计、动态漏洞验证、报告生成；AI 代码审计，采用多 Agent 智能体静态审计+动态验证模式；最终生成稳定的 HTML、Word 格式安全评估报告。触发场景：代码审计、AI 代码审计、漏洞评估、VIBE-CSA 专项检测。"
 metadata:
   author: helloworld
-  version: "1.0.1"
+  version: "1.0.2"
   date: 2026-05-20
 ---
 # vibe-csa: 代码安全审计三阶段协议
@@ -100,6 +100,13 @@ python {SKILL_ROOT}/scripts/merge_static_results.py \
   --target-url {target_url}
 ```
 
+#### Stage 1.3 复核 `workDir/static-merged.json` 中的重复项
+- 在 `merge_static_results.py` 完成汇总后，复核 `workDir/static-merged.json` 中的 `findings[]`，进一步识别并处理重复静态漏洞
+- “重复漏洞”默认指：`location.file` 相同、`location.line_start` 相同、`location.line_end` 相同，且描述的是同一代码根因的 finding；此类重复项只保留一条，优先保留 `confidence` 更高、证据更完整、描述更清晰的一条
+- 若仅为同一文件中的相近行号、相同或相似漏洞类型，但尚不能确认是否为同一根因，则视为“疑似重复”，默认保留，不自动删除；只有在确认属于同一代码根因、同一 sink 或同一参数传播路径时，才允许进一步合并或标记为重复关系
+- 不得仅凭标题相似、漏洞描述相似或同属一个漏洞大类就直接认定为重复项
+- 完成复核后，确保 `workDir/static-merged.json` 仍为合法 JSON，且 `findings[]` 编号、统计信息和引用关系保持一致
+
 ### Stage 2 漏洞动态验证（可选）
 
 这是可选阶段。只有用户提供目标环境并要求动态验证时才执行。目标是把静态发现转化为可证明或可否定的运行时证据。
@@ -112,6 +119,7 @@ Stage 2 关键产物：
 #### Stage 2.1 准备动态验证输入与状态文件
 - 调用 `scripts/prepare_dynamic_pocs.py` 时，会在这一步同时生成若干条动态验证骨架文件（如： `workDir/findings/FINDING-high-001.poc.json`）和 `workDir/dynamic-state.json`
 - 根据用户指定的漏洞风险等级，按 `workDir/dynamic-state.json` 中 `findings[].severity` 对本轮验证队列进行筛选；仅修改 `dynamic-state.json` 中的 `findings[]`，移除不在本轮验证范围内的队列项，不删除对应的 `workDir/findings/FINDING-*.poc.json` 文件，并确保 `dynamic-state.json` 仍为合法 JSON
+- 如本轮计划并行创建多个 `dynamic-verifier` 子 Agent，可在筛选后的 `findings[]` 队列项中额外写入 `assigned_slot=1|2|3` 字段，按本轮实际创建的子 Agent 数量近似平均分配任务；该字段只用于 Stage 2 子 Agent 领取各自负责的队列项，不改变 finding 文件内容。例如：`dynamic-verifier-1` 只领取 `assigned_slot=1` 的任务，`dynamic-verifier-2` 只领取 `assigned_slot=2` 的任务
 - `severity` 的合法取值为 `critical|high|medium|low`，分别对应“严重|高危|中危|低危”；若用户未单独指定验证等级，则默认保留 `critical`、`high`，并可按需抽样 `medium`，通常不默认验证 `low`
 
 ```bash
@@ -126,11 +134,13 @@ python {SKILL_ROOT}/scripts/prepare_dynamic_pocs.py \
 - 若用户提供账号密码，或存在 `analysis.attack_surface.auth_required=true`，或存在 `required_role`，必须先调用 `scripts/prepare_auth_session.py` / `scripts/extract_credentials.py`，让用户在浏览器中手动登录并生成 `workDir/sessions/creds.json`
 
 #### Stage 2.3 创建并行 dynamic-verifier 子 Agent
-- 在 `workDir/dynamic-state.json`、对应的 `workDir/findings/FINDING-*.poc.json` 以及所需认证上下文准备完成后，再根据 `{SKILL_ROOT}/core/dynamic-multi-agent.md`，按照当前 Stage 2 队列中可领取的 `pending` finding 数量，按需创建 `1~3` 个 `dynamic-verifier` 子 Agent 并发执行漏洞验证，提高漏洞验证效率；子 Agent 不按漏洞等级分组创建，而是统一从 `dynamic-state.json` 中自动领取任务
+- 在 `workDir/dynamic-state.json`、对应的 `workDir/findings/FINDING-*.poc.json` 以及所需认证上下文准备完成后，再根据 `{SKILL_ROOT}/core/dynamic-multi-agent.md`，按照当前 Stage 2 队列中可领取的 `pending` finding 数量，按需创建 `1~3` 个 `dynamic-verifier` 子 Agent 并发执行漏洞验证，提高漏洞验证效率；子 Agent 不按漏洞等级分组创建，而是统一从 `dynamic-state.json` 中领取任务
+- 若 Stage 2.1 已为队列项写入 `assigned_slot`，则创建子 Agent 时必须明确告知其只负责对应槽位的任务；子 Agent 仅领取 `assigned_slot` 与自身一致的 `pending` finding，避免并行领取同一任务
 - `dynamic-verifier` 子 Agent 应尽量通过 `dynamic-state.json` 和对应的 finding 文件传递状态与结果，避免将详细验证过程、长响应内容和中间推理回灌主流程上下文
 
 #### Stage 2.4 子 Agent 执行动态漏洞验证
 - 并行 `dynamic-verifier` 子 Agent 的任务领取、冲突规避、状态更新、漏洞验证与写回边界统一遵循 `{SKILL_ROOT}/core/dynamic-multi-agent.md`
+- 若存在 `assigned_slot`，则子 Agent 只处理分配给自身槽位的 finding；若未预分配，则退回共享队列自动领取模式
 - 并行 `dynamic-verifier` 子 Agent 需要持续从当前 Stage 2 队列中领取并处理任务，直到 `workDir/dynamic-state.json` 中本轮验证范围内不再存在可领取的 `pending` finding
 - `dynamic-state.json` 只用于轻量调度状态传递，不用于存储完整请求、完整响应、长证据片段或推理过程；漏洞验证数据必须写回各自的 `workDir/findings/FINDING-*.poc.json`
 - 允许清理测试过程中自己创建的数据、文件或记录；禁止修改原始业务数据、他人数据或生产数据；允许文件上传测试，但必须受上述边界约束
@@ -148,8 +158,13 @@ python {SKILL_ROOT}/scripts/prepare_dynamic_pocs.py \
 
 ### Stage 3 报告生成
 
+#### 翻译说明性内容
+- 在执行 HTML / Word 报告脚本前，根据用户需求检查 `workDir/static-merged.json` 或 `workDir/dynamic-verified.json` 中的说明性文本字段是否为英文或中英混杂；若是，则额外执行一次说明性文本翻译，默认翻译为中文
+- 建议翻译的字段包括：`analysis.verification_plan.steps.action`、`poc.steps.name`、`dynamic_verification.runtime_notes`、`dynamic_verification.final_evidence.summary`、`dynamic_verification.attempts[].payload_strategy`、`dynamic_verification.attempts[].next_action`、`description`、`impact`、`vuln_type`
+- 不得翻译路径、参数名、字段名、payload、状态码、URL、请求/响应原始报文、证据原文片段及其它技术性片段；翻译后必须保持原有 JSON 结构、字段名和技术语义不变，并确保文件仍为合法 JSON
+
 #### 如果只执行了 Stage 1 静态审计
-静态-only示例，生成html以及word报告
+静态-only报告生成示例，生成html以及word报告
 
 ```bash
 python {SKILL_ROOT}/scripts/vibe_csa_html.py -i workDir/static-merged.json -o workDir/reports/vibe-csa-static-{YYYYMMDD-HHmmss}.html
@@ -159,7 +174,7 @@ python {SKILL_ROOT}/scripts/vibe_csa_report.py -i workDir/static-merged.json -o 
 
 #### 如果执行了静态审计和动态漏洞验证
 
-动态漏洞验证示例，生成html以及word报告
+动态漏洞验证报告生成示例，生成html以及word报告
 
 ```bash
 python {SKILL_ROOT}/scripts/vibe_csa_html.py -i workDir/dynamic-verified.json -o workDir/reports/vibe-csa-dynamic-{YYYYMMDD-HHmmss}.html
@@ -214,6 +229,7 @@ workDir/
       "vuln_id": "FINDING-001",
       "severity": "high",
       "finding_file": "workDir/findings/FINDING-high-001.poc.json",
+      "assigned_slot": 1,
       "status": "pending",
       "leased_by": "",
       "lease_until": "",

@@ -33,6 +33,7 @@ Vibe CSA (Code Security Audit) ，是一款基于 AI Agent 架构的代码审计
 - `scripts/`：辅助脚本，负责合并结果、初始化 PoC、验证请求、校验和导出报告
 
 使用AI智能体，加载此技能，配合本技能包含的检测脚本
+- 3分钟使用教程视频：[bilibili.com/video/BV1RiGX6rESQ/](https://www.bilibili.com/video/BV1RiGX6rESQ/)
 - 优先推荐编程类智能体：Qoder、Trae、Claude Code、Codex 等
 - 次选：龙虾类智能体
 

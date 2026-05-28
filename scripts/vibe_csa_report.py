@@ -325,22 +325,18 @@ def get_finding_status(finding, audit_stage):
     if audit_stage != 'dynamic_verification':
         return finding.get('status', 'CONFIRMED')
     
-    # 动态验证阶段，根据 actual result 确定状态
+    # 动态验证阶段，根据 poc.result 确定状态（忽略大小写）
     poc = finding.get('poc', {})
-    poc_result = poc.get('result', 'pending')
-    dynamic_verification = finding.get('dynamic_verification', {})
-    dv_state = dynamic_verification.get('state', 'not_started')
+    poc_result = poc.get('result', 'pending').lower()
     
-    # 状态映射逻辑
-    if poc_result == 'success' or dv_state == 'verified':
+    # 状态映射逻辑：根据 poc.result 值判断（忽略大小写）
+    if poc_result in ('success', 'confirmed'):
         return 'CONFIRMED'  # 已确认
-    elif poc_result == 'pending' or dv_state == 'not_started':
+    elif poc_result == 'pending':
         return 'HYPOTHESIS'  # 待验证
-    elif poc_result == 'failure' or dv_state == 'failed':
-        return 'FAILED'  # 验证未成功
     else:
-        # 其他情况（partial等）
-        return 'FAILED'  # 默认归类为验证未成功
+        # 其他状态（failure、skipped 等）归类为验证未成功
+        return 'FAILED'  # 验证未成功
 
 
 def generate_report(data, logo_path, output_path):
@@ -587,11 +583,18 @@ def generate_report(data, logo_path, output_path):
         }
         status_color = status_colors_map.get(status, COLORS['info'])
 
+        # 根据 poc.result 动态确定审计方法（忽略大小写）
+        poc_result = finding.get('poc', {}).get('result', '').lower()
+        if poc_result == 'pending':
+            finding_audit_method = '静态代码审计'
+        else:
+            finding_audit_method = audit_method
+
         row.cells[0].text = str(idx)
         row.cells[1].text = finding['title']
         row.cells[2].text = severity_label
         row.cells[3].text = status_label
-        row.cells[4].text = audit_method
+        row.cells[4].text = finding_audit_method
         
         for cell_idx, cell in enumerate(row.cells):
             for paragraph in cell.paragraphs:
@@ -615,10 +618,11 @@ def generate_report(data, logo_path, output_path):
                 run.font.color.rgb = RGBColor(255, 255, 255)
                 run.font.bold = True
         
-        if audit_stage == 'dynamic_verification':
-            set_cell_shading(row.cells[4], COLORS['primary_cyan'][1:])
-        else:
+        # 审计方法列背景色
+        if finding_audit_method == '静态代码审计':
             set_cell_shading(row.cells[4], COLORS['accent_teal'][1:])
+        else:
+            set_cell_shading(row.cells[4], COLORS['primary_cyan'][1:])
         for paragraph in row.cells[4].paragraphs:
             for run in paragraph.runs:
                 run.font.color.rgb = RGBColor(255, 255, 255)

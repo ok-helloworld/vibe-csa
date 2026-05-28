@@ -15,4 +15,4 @@ stage to keep responsibilities clearer.
   `workDir/static-merged.json`.
 - Read `dynamic-multi-agent.md` when creating or running Stage 2
   `dynamic-verifier` agents, claiming work from `workDir/dynamic-state.json`,
-  or writing `workDir/findings/FINDING-*.poc.json`.
+  or writing `workDir/findings/FINDING-*.json`.

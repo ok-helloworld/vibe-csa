@@ -31,7 +31,7 @@
 
 ### 1. 动态验证过程
 
-- [ ] 每个待验证 finding 都有独立的 `workDir/findings/FINDING-*.poc.json`（例如 `FINDING-high-001.poc.json`）
+- [ ] 每个待验证 finding 都有独立的 `workDir/findings/FINDING-*.json`（例如 `FINDING-001.json`）
 - [ ] 每轮验证都写入真实 request/response 或明确的失败轨迹
 - [ ] 多步骤漏洞保留完整 `poc.steps[]`
 - [ ] `dynamic_verification.attempts[]` 与实际验证轮次一致

@@ -4,7 +4,7 @@
 The output is a single-finding JSON scaffold based on
 `references/dynamic-init-example.json`, then filled with the static finding
 content from `static-merged.json` and written as
-`FINDING-{severity}-{id_suffix}.poc.json`.
+`FINDING-001.json`.
 """
 
 from __future__ import annotations
@@ -74,18 +74,18 @@ def normalize_severity(value: Any) -> str:
     return severity
 
 
-def finding_id_suffix_for(vuln_id: Any, index: int) -> str:
+def finding_filename_base_for(vuln_id: Any, index: int) -> str:
     raw = str(vuln_id or "").strip()
-    if raw.upper().startswith("FINDING-"):
-        raw = raw[8:]
-    suffix = re.sub(r"[^A-Za-z0-9_-]+", "-", raw).strip("-_")
-    return suffix or f"{index:03d}"
+    fallback = f"FINDING-{index:03d}"
+    if not raw:
+        return fallback
+    base = re.sub(r"[^A-Za-z0-9_-]+", "-", raw).strip("-_")
+    return base or fallback
 
 
 def output_filename_for(finding: dict, index: int) -> str:
-    severity = normalize_severity(finding.get("severity"))
-    suffix = finding_id_suffix_for(finding.get("vuln_id"), index)
-    return f"FINDING-{severity}-{suffix}.poc.json"
+    base = finding_filename_base_for(finding.get("vuln_id"), index)
+    return f"{base}.json"
 
 
 def atomic_write_json(path: Path, payload: Any) -> None:
@@ -144,7 +144,7 @@ def build_state_entry(prepared: dict, output_file: Path, state_file: Path) -> di
         "vuln_id": str(prepared.get("vuln_id") or ""),
         "severity": severity,
         "finding_file": state_path_for(output_file, state_file),
-        "status": "pending",
+        "queue_state": "pending",
         "leased_by": "",
         "lease_until": "",
         "conflict_key": conflict_key_for(prepared, side_effect_level),
@@ -309,7 +309,7 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         required=True,
-        help="Directory for FINDING-{severity}-{id_suffix}.poc.json",
+        help="Directory for FINDING-001.json style finding files",
     )
     parser.add_argument(
         "--template",
@@ -323,8 +323,8 @@ def main() -> None:
     parser.add_argument(
         "--max-parallel",
         type=int,
-        default=3,
-        help="Max parallel dynamic-verifier agents to pre-register in dynamic-state.json (default: 3).",
+        default=5,
+        help="Max parallel dynamic-verifier agents to pre-register in dynamic-state.json (default: 5).",
     )
     parser.add_argument(
         "--target-url",

@@ -16,13 +16,23 @@ PoC 构造按以下字段取证：
 
 ## 固定步骤
 
-1. 动态验证 Agent 读取 `workDir/findings/FINDING-*.poc.json`（例如 `workDir/findings/FINDING-high-001.poc.json`）
-2. 判断此漏洞在利用时是否要加载登录凭据 `workDir/sessions/creds.json`
-3. 用 `curl`、Python `requests`、浏览器自动化或其他合适工具构造并发送真实 PoC 请求；最终写回 finding 时，必须按统一契约回填标准化的 `request` / `response` / `response._evidence_match`
-  - 若失败 → 回读源码，改 payload / 改参数 / 改认证上下文 / 尝试绕过，重试至少 **3 轮**，每一轮都要：
+1. 动态验证 Agent 读取 `workDir/findings/FINDING-*.json`（例如 `workDir/findings/FINDING-001.json`）
+2. 判断此漏洞在利用时是否要加载登录凭据 `workDir/sessions/creds.json`；如需认证，从中提取 Cookie/Token 后通过 `--cookies` 或 `--headers '{"Authorization":"Bearer ..."}'` 传入
+3. ★ **必须使用 `{SKILL_ROOT}/scripts/http_test.py` 构造并发送真实 PoC 请求**（禁止使用 curl 或其他工具替代）。先读取 `{SKILL_ROOT}/references/http-test-usage.md` 了解完整用法和场景模板：
+   ```bash
+   python {SKILL_ROOT}/scripts/http_test.py \
+     --url "<TARGET_URL>" --method <METHOD> \
+     --data '<PAYLOAD>' --headers '{"Key":"Val"}' --cookies "<SESSION>" \
+     --response-filter '<VULN_TYPE_REGEX>' --response-filter-mode line \
+     --response-max-lines 100 \
+     --show-command --show-summary --include-headers
+   ```
+   最终写回 finding 时，必须按统一契约回填标准化的 `request` / `response` / `response._evidence_match`
+  - 若失败 → 回读源码，改 payload / 改参数 / 改认证上下文 / 尝试绕过，每次重试用新的 http_test.py 调用（保留每轮 `--show-command --show-summary --include-headers` 输出），重试至少 **3 轮**，每一轮都要：
     - 读 response
     - 如果失败，看响应读源码分析为什么失败
-    - 改策略，再发
+    - 改策略（按需切换特殊参数：`--allow-insecure` 绕过 TLS、`--follow-redirects` 跟踪重定向链、`--user-agent` 伪装 UA、`--additional-args "http2=true"` 走私、`--response-encoding gbk` 编码探测）
+    - 再发
   - 若成功 → 确认 response body 中有实质性证据（不只看 HTTP 200，不能虚假编造 response ）
     - 利用成功的证据充分：设置 `poc.result="success"`、`status="CONFIRMED"`、`finding_class="runtime_verified"`、`dynamic_verification.state="verified"`
 4. 若尝试了3次仍失败
@@ -87,10 +97,24 @@ step 3: 传入命令并在响应中看到 uid=... 或等价命令输出
 
 必须写入：
 
-- `poc.steps.request`、`poc.steps.response` 都需要保留完整请求与响应数据，`request.raw` 或 `response.raw` 若超过4096字节，可保留关键证据片段
+- `poc.steps.request`、`poc.steps.response` 都需要保留完整请求与响应数据；其中，`poc.steps.request.raw`、`poc.steps.response.raw` 不是必填项，但其它字段都需要根据实际请求和响应情况填写完整数据
 - `poc.evidence`：引用具体 step 和响应原文片段。
 - `response._evidence_match[]`：记录 `type/pattern/strength/snippet`。
 - `dynamic_verification.final_evidence`：记录最终证明类型和证据片段。
+
+### http_test.py 输出 → 证据字段回填映射
+
+| http_test.py 输出段落 | 对应 finding 字段 | 回填方式 |
+|---|---|---|
+| `Method: GET/POST/...` | `poc.steps[].request.method` | `"GET"` / `"POST"` 等 |
+| `URL: http://...` | `poc.steps[].request.url` | 完整 URL 字符串 |
+| `Headers (N total):` + 各行 `Key: Value` | `poc.steps[].request.headers` | JSON dict: `{"Key":"Val",...}` |
+| `Body: N bytes (mode, charset=...)` | `poc.steps[].request.body` | 摘要字符串，若超过 4096 字节，可保留关键证据片段 |
+| `HTTP/1.1 NNN ...` | `poc.steps[].response.status_code` | 取 `NNN` 整数 |
+| 响应头各行 `Key: Value` | `poc.steps[].response.headers` | JSON dict |
+| `[body] matched N/M lines` 匹配行内容 | `response._evidence_match[].snippet` | 原文复制匹配行 |
+| `----- Meta #N -----` 性能指标 | `response._evidence_match[].strength` | TTFB 或时间盲注证据 |
+| `Encoding Used: xxx (source)` | `response._evidence_match[].encoding_source` | `"utf-8 (header)"` 等 |
 
 ## 成功/失败状态写回口径
 
@@ -110,4 +134,4 @@ step 3: 传入命令并在响应中看到 uid=... 或等价命令输出
   - 认证失效或登录态不足：`poc.result="auth_failed"`，`dynamic_verification.state="blocked"` 或 `failed`
   - 目标主动拦截、WAF、风控或实验条件不满足（无法绕过防护时）：保留 `poc.result="failure"`，并将 `attempts[].result` 或 `dynamic_verification.state` 写为 `blocked`
   - 用户主动跳过、环境不允许继续：`poc.result="skipped"`，`dynamic_verification.state="skipped"`
-- 没有 L2/L3 运行时证据时，不得升级为 `CONFIRMED`；应保持或降回 `HYPOTHESIS + code_only`，并补全 `failure_log[]`、`dynamic_verification.runtime_notes`、`dynamic_verification.final_evidence.proof_type="none"`
+- 没有 L2/L3 运行时证据时，不得升级为 `CONFIRMED`；应保持或降回 `HYPOTHESIS + code_only`，并补全 `failure_log[]`（此处存的是对象/字典项）、`dynamic_verification.runtime_notes`、`dynamic_verification.final_evidence.proof_type="none"`

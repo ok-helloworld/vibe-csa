@@ -43,9 +43,13 @@ def sev_color(sev):
     return {"critical":"#e53e3e","high":"#dd6b20","medium":"#d69e2e","low":"#38a169"}.get(sev.lower(),"#38a169")
 
 def status_class(s):
+    if not isinstance(s, str):
+        return "status-hypothesis"
     return {"CONFIRMED":"status-confirmed","HYPOTHESIS":"status-hypothesis","FAILED":"status-failed"}.get(s.upper(),"status-hypothesis")
 
 def status_label(s):
+    if not isinstance(s, str):
+        return "待验证"
     return {"CONFIRMED":"已确认","HYPOTHESIS":"待验证","FAILED":"验证未成功"}.get(s.upper(), s)
 
 def dv_state_class(s):
@@ -81,13 +85,16 @@ def score_ring(score):
     dash = circ * pct
     gap  = circ - dash
     color = sev_color("critical" if score>=9 else "high" if score>=7 else "medium" if score>=4 else "low")
-    return f"""<svg class="score-ring" viewBox="0 0 68 68" width="68" height="68">
-      <circle cx="34" cy="34" r="{r}" fill="none" stroke="#e8edf2" stroke-width="6"/>
-      <circle cx="34" cy="34" r="{r}" fill="none" stroke="{color}" stroke-width="6"
-        stroke-dasharray="{dash:.2f} {gap:.2f}" stroke-linecap="round"
-        transform="rotate(-90 34 34)"/>
-      <text x="34" y="39" text-anchor="middle" class="score-text" style="fill:{color}">{score}</text>
-    </svg>"""
+    svg = (
+        '<svg class="score-ring" viewBox="0 0 68 68" width="68" height="68">'
+        '<circle cx="34" cy="34" r="' + str(r) + '" fill="none" stroke="#e8edf2" stroke-width="6"/>'
+        '<circle cx="34" cy="34" r="' + str(r) + '" fill="none" stroke="' + color + '" stroke-width="6" '
+        'stroke-dasharray="' + format(dash, '.2f') + ' ' + format(gap, '.2f') + '" stroke-linecap="round" '
+        'transform="rotate(-90 34 34)"/>'
+        '<text x="34" y="39" text-anchor="middle" class="score-text" style="fill:' + color + '">' + str(score) + '</text>'
+        '</svg>'
+    )
+    return svg
 
 def render_headers(headers):
     if not headers: return ""
@@ -114,7 +121,7 @@ def resp_status_class(status):
 # ──────────────────────────────────────────────
 
 def build_cover(audit, findings):
-    stage_map = {"static_audit":"静态代码审计","dynamic_verification":"动态漏洞验证","report":"最终安全报告"}
+    stage_map = {"static_audit":"静态代码审计","dynamic_verification":"静态代码审计+动态漏洞验证","report":"最终安全报告"}
     mode_map  = {"quick":"快速扫描","standard":"标准扫描","deep":"深度扫描"}
     scope_map = {"full":"全量审计","partial":"部分审计","incremental":"增量审计"}
     env_map   = {"unknown":"未知","local":"本地","dev":"开发","test":"测试","staging":"预发布","production":"生产"}
@@ -149,27 +156,20 @@ def build_cover(audit, findings):
     med = sev_counts["medium"]
     low = sev_counts["low"]
     
-    # 按状态统计
-    confirmed = sum(1 for f in findings if f.get("status") == "CONFIRMED")
-    hypothesis = sum(1 for f in findings if f.get("status") == "HYPOTHESIS")
-    
-    # 动态验证统计
-    runtime_verified = 0  # 验证成功
-    verification_failed = 0  # 验证失败
-    pending_only = 0  # 仅静态审计(pending)
+    # 动态验证统计 - 基于 poc.result
+    confirmed = 0  
+    pending = 0  
+    failed = 0  
     for f in findings:
-        dyn = f.get("dynamic_verification", {})
-        state = dyn.get("state", "")
-        poc_result = f.get("poc", {}).get("result", "pending")
-        if state == "verified":
-            runtime_verified += 1
-        elif state == "failed" or poc_result == "failure":
-            verification_failed += 1
+        poc_result = f.get("poc", {}).get("result", "pending").lower()
+        if poc_result in ["success", "confirmed"]:
+            confirmed += 1
+        elif poc_result == "pending":
+            pending += 1
         else:
-            pending_only += 1
+            failed += 1
     
-    # 动态验证总数 = 验证成功 + 验证失败
-    dynamic_verification_total = runtime_verified + verification_failed
+    dynamic_verification_total = confirmed + failed
 
     # donut chart data
     donut_segments = []
@@ -240,10 +240,10 @@ def build_cover(audit, findings):
       <div class="cover-sev-legend">{sev_items}</div>
     </div>
     <div class="cover-stat-row">
-      <div class="cstat"><span class="cstat-v">{runtime_verified}</span><span class="cstat-l">已确认</span></div>
-      <div class="cstat"><span class="cstat-v">{pending_only}</span><span class="cstat-l">待验证</span></div>
+      <div class="cstat"><span class="cstat-v">{confirmed}</span><span class="cstat-l">已确认</span></div>
+      <div class="cstat"><span class="cstat-v">{pending}</span><span class="cstat-l">待验证</span></div>
       <div class="cstat"><span class="cstat-v">{dynamic_verification_total}</span><span class="cstat-l">动态验证</span></div>
-      <div class="cstat"><span class="cstat-v">{verification_failed}</span><span class="cstat-l">验证未成功</span></div>
+      <div class="cstat"><span class="cstat-v">{failed}</span><span class="cstat-l">验证未成功</span></div>
     </div>
   </div>
 </div>"""
@@ -254,41 +254,30 @@ def build_cover(audit, findings):
 # ──────────────────────────────────────────────
 
 def build_summary(audit, findings):
-    # 从实际findings动态计算统计数据
     s = audit.get("summary", {})
     cov = audit.get("coverage_summary", {})
     total = len(findings) if findings else s.get("total", 0)
     
-    # 按严重性统计
     sev_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
     for f in findings:
         sev = f.get("severity", "low").lower()
         if sev in sev_counts:
             sev_counts[sev] += 1
     
-    # 按状态统计
-    confirmed = sum(1 for f in findings if f.get("status") == "CONFIRMED")
-    hypothesis = sum(1 for f in findings if f.get("status") == "HYPOTHESIS")
-    
-    # 动态验证统计
-    runtime_verified = 0  # 验证成功
-    verification_failed = 0  # 验证失败
-    pending_only = 0  # 仅静态审计(pending)
+    confirmed = 0
+    pending = 0
+    failed = 0
     for f in findings:
-        dyn = f.get("dynamic_verification", {})
-        state = dyn.get("state", "")
-        poc_result = f.get("poc", {}).get("result", "pending")
-        if state == "verified":
-            runtime_verified += 1
-        elif state == "failed" or poc_result == "failure":
-            verification_failed += 1
+        poc_result = f.get("poc", {}).get("result", "pending").lower()
+        if poc_result in ["success", "confirmed"]:
+            confirmed += 1
+        elif poc_result == "pending":
+            pending += 1
         else:
-            pending_only += 1
+            failed += 1
     
-    # 动态验证总数 = 验证成功 + 验证失败
-    dynamic_verification_total = runtime_verified + verification_failed
+    dynamic_verification_total = confirmed + failed
 
-    # severity bars
     sev_bars = ""
     for sev, cls, lb in [("critical","sev-critical","严重"),("high","sev-high","高危"),
                           ("medium","sev-medium","中危"),("low","sev-low","低危")]:
@@ -300,7 +289,6 @@ def build_summary(audit, findings):
           <span class="sb-cnt">{cnt}</span>
         </div>"""
 
-    # type distribution
     by_type = s.get("by_type",{})
     type_rows = "".join([
         f'<div class="tr-row"><span class="tr-name">{e(k)}</span>'
@@ -309,7 +297,6 @@ def build_summary(audit, findings):
         for k, v in by_type.items()
     ])
 
-    # coverage meters
     cov_items = [
         ("综合覆盖", cov.get("total_pct",0), "cov-total"),
         ("入口点文件覆盖率",  cov.get("tier1_pct",0),  "cov-t1"),
@@ -334,28 +321,27 @@ def build_summary(audit, findings):
         <div class="sev-bars">{sev_bars}</div>
       </div>
       <div class="sumcard">
-        <div class="sumcard-title">漏洞类型分布</div>
-        {type_rows if type_rows else '<p class="muted">暂无数据</p>'}
-      </div>
-    </div>
-
-    <div class="sumcol">
-      <div class="sumcard">
-        <div class="sumcard-title">代码覆盖率</div>
-        {cov_meters}
-        <div class="cov-detail">
-          <span>已审文件 <strong>{cov.get("reviewed_files","—")}</strong></span>
-          <span>有效代码行 (EALOC) <strong>{cov.get("ealoc","—")}</strong></span>
+        <div class="sumcard-title">代码覆盖概览</div>
+        <div class="code-coverage-box">
+          <div class="cc-item cc-item-files"><span class="cc-label">已审文件</span><span class="cc-value">{cov.get("reviewed_files","—")}</span></div>
+          <div class="cc-item cc-item-ealoc"><span class="cc-label">有效代码行 (EALOC)</span><span class="cc-value">{cov.get("ealoc","—")}</span></div>
         </div>
       </div>
       <div class="sumcard">
         <div class="sumcard-title">发现状态概览</div>
         <div class="status-overview">
-          <div class="so-item so-confirmed"><span class="so-val">{runtime_verified}</span><span class="so-lbl">已确认</span></div>
-          <div class="so-item so-pending"><span class="so-val">{pending_only}</span><span class="so-lbl">待验证</span></div>
+          <div class="so-item so-confirmed"><span class="so-val">{confirmed}</span><span class="so-lbl">已确认</span></div>
+          <div class="so-item so-pending"><span class="so-val">{pending}</span><span class="so-lbl">待验证</span></div>
           <div class="so-item so-rv"><span class="so-val">{dynamic_verification_total}</span><span class="so-lbl">动态验证</span></div>
-          <div class="so-item so-failed"><span class="so-val">{verification_failed}</span><span class="so-lbl">验证未成功</span></div>
+          <div class="so-item so-failed"><span class="so-val">{failed}</span><span class="so-lbl">验证未成功</span></div>
         </div>
+      </div>
+    </div>
+
+    <div class="sumcol">
+      <div class="sumcard">
+        <div class="sumcard-title">漏洞类型分布</div>
+        {type_rows if type_rows else '<p class="muted">暂无数据</p>'}
       </div>
     </div>
 
@@ -372,22 +358,23 @@ def build_toc(findings):
     for f in findings:
         vid   = f.get("vuln_id","")
         sev   = f.get("severity","low")
+        sev_val = sev.lower()
         
-        # 根据动态验证结果确定状态
-        dyn = f.get("dynamic_verification", {})
         poc = f.get("poc", {})
-        dyn_state = dyn.get("state", "")
-        poc_result = poc.get("result", "pending")
+        poc_result = poc.get("result", "pending").lower()
         
-        if dyn_state == "verified":
+        if poc_result in ["success", "confirmed"]:
             status = "CONFIRMED"
-        elif dyn_state == "failed" or poc_result == "failure":
-            status = "FAILED"
+            status_val = "confirmed"
+        elif poc_result == "pending":
+            status = "HYPOTHESIS"
+            status_val = "hypothesis"
         else:
-            status = f.get("status", "HYPOTHESIS")
+            status = "FAILED"
+            status_val = "failed"
         
         slug  = f"finding-{e(vid)}"
-        rows += f"""<tr class="toc-row" onclick="jumpTo('{slug}')">
+        rows += f"""<tr class="toc-row" data-sev="{sev_val}" data-status="{status_val}" onclick="openSlidePanel('{slug}')">
           <td><span class="toc-id">{e(vid)}</span></td>
           <td class="toc-title">{e(f.get("title",""))}</td>
           <td><span class="badge {sev_class(sev)}">{sev_label(sev)}</span></td>
@@ -395,9 +382,34 @@ def build_toc(findings):
           <td class="toc-type">{e(f.get("vuln_type",""))}</td>
           <td class="toc-score">{f.get("dktss_score","—")}</td>
         </tr>"""
+    filter_html = """
+    <div class="filter-container">
+      <div class="filter-group">
+          <label class="checkbox-wrapper"><input type="checkbox" checked onclick="toggleAll(this)" class="select-all-cb"><div class="checkmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div><span class="label">全选/清空</span></label>
+        <span class="fg-title">严重性筛选:</span>
+        <div class="fg-items">
+          <label class="checkbox-wrapper"><input type="checkbox" class="filter-cb" data-type="sev" value="critical" checked onchange="updateFilters()"><div class="checkmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div><span class="label">严重</span></label>
+          <label class="checkbox-wrapper"><input type="checkbox" class="filter-cb" data-type="sev" value="high" checked onchange="updateFilters()"><div class="checkmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div><span class="label">高危</span></label>
+          <label class="checkbox-wrapper"><input type="checkbox" class="filter-cb" data-type="sev" value="medium" checked onchange="updateFilters()"><div class="checkmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div><span class="label">中危</span></label>
+          <label class="checkbox-wrapper"><input type="checkbox" class="filter-cb" data-type="sev" value="low" checked onchange="updateFilters()"><div class="checkmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div><span class="label">低危</span></label>
+        </div>
+      </div>
+      <div class="filter-divider"></div>
+      <div class="filter-group">
+        <span class="fg-title">状态筛选:</span>
+        <div class="fg-items">
+          <label class="checkbox-wrapper"><input type="checkbox" class="filter-cb" data-type="status" value="confirmed" checked onchange="updateFilters()"><div class="checkmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div><span class="label">已确认</span></label>
+          <label class="checkbox-wrapper"><input type="checkbox" class="filter-cb" data-type="status" value="hypothesis" checked onchange="updateFilters()"><div class="checkmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div><span class="label">待验证</span></label>
+          <label class="checkbox-wrapper"><input type="checkbox" class="filter-cb" data-type="status" value="failed" checked onchange="updateFilters()"><div class="checkmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div><span class="label">验证未成功</span></label>
+        </div>
+      </div>
+    </div>
+    """
+
     return f"""
 <section class="sec" id="toc">
   <div class="sec-hdr"><span class="sec-num">02</span><h2>漏洞列表</h2></div>
+  {filter_html}
   <table class="toc-table">
     <thead><tr><th>编号</th><th>漏洞标题</th><th>严重性</th><th>状态</th><th>类型</th><th>DKTSS</th></tr></thead>
     <tbody>{rows}</tbody>
@@ -412,7 +424,8 @@ def build_toc(findings):
 def build_finding(f, idx, audit_stage="static_audit"):
     vid      = f.get("vuln_id", f"FINDING-{idx:03d}")
     sev      = f.get("severity","low")
-    status   = f.get("status","HYPOTHESIS")
+    sev_val  = sev.lower()
+    
     loc      = f.get("location",{})
     analysis = f.get("analysis",{})
     static_ev= f.get("static_evidence",{})
@@ -422,15 +435,17 @@ def build_finding(f, idx, audit_stage="static_audit"):
     fix      = f.get("fix",{})
     slug     = f"finding-{e(vid)}"
     
-    # 根据动态验证结果确定状态
-    dyn_state = dyn.get("state", "")
-    poc_result = poc.get("result", "pending")
-    if dyn_state == "verified":
+    # 状态计算逻辑 - 基于 poc.result
+    poc_result = poc.get("result", "pending").lower()
+    if poc_result in ["success", "confirmed"]:
         status = "CONFIRMED"
-    elif dyn_state == "failed" or poc_result == "failure":
-        status = "FAILED"
+        status_val = "confirmed"
+    elif poc_result == "pending":
+        status = "HYPOTHESIS"
+        status_val = "hypothesis"
     else:
-        status = f.get("status", "HYPOTHESIS")
+        status = "FAILED"
+        status_val = "failed"
     
     is_static_stage = (audit_stage == "static_audit")
 
@@ -488,95 +503,119 @@ def build_finding(f, idx, audit_stage="static_audit"):
     # ── PoC steps
     poc_result = poc.get("result", "pending")
     poc_steps_html = ""
+    
     for step in poc.get("steps",[]):
+        step_num = step.get("step", 0)
         req  = step.get("request",{})
         resp = step.get("response",{})
-        params_str = render_params(req.get("params",{}))
-        ev_matches = "".join([f"""<div class="ev-match {strength_class(em.get('strength','L0'))}">
-          <span class="em-type">{e(em.get('type',''))}</span>
-          <span class="em-str">{e(em.get('strength',''))}</span>
-          <code class="em-snip">{e(em.get('snippet',''))}</code>
-        </div>""" for em in resp.get("_evidence_match",[])])
-
-        elapsed = resp.get("_meta",{}).get("elapsed_ms","")
-        status_c = resp_status_class(resp.get("status",""))
         
-        # pending: 不显示REQUEST/RESPONSE内容
         if poc_result == "pending":
-            poc_steps_html += f"""<div class="poc-step">
-              <div class="poc-step-hdr">
-                <span class="poc-snum">Step {step.get("step","")}</span>
-                <span class="poc-sname">{e(step.get("name",""))}</span>
-              </div>
-              <p class="muted">静态审计阶段，暂无动态验证的REQUEST/RESPONSE内容</p>
-            </div>"""
             continue
         
-        # failure及其他结果：显示REQUEST/RESPONSE内容
-        req_display = req.get("raw", "")
-        resp_display = resp.get("raw", "")
-        has_req_raw = bool(req_display)
-        has_resp_raw = bool(resp_display)
+        # 拼接 REQUEST 数据包
+        method = req.get("method", "GET")
+        url = req.get("url", "")
+        params = req.get("params", {})
+        headers = req.get("headers", {})
+        body = req.get("body", "")
         
-        if not has_req_raw:
-            req_display = req.get("body", "")
-        if not has_resp_raw:
-            resp_display = resp.get("body", "")
+        # 构建请求行
+        if params and not url:
+            param_str = "&".join([f"{e(k)}={e(v)}" for k, v in params.items()])
+            req_line = f"{method} ?{param_str} HTTP/1.1"
+        elif url:
+            req_line = f"{method} {url} HTTP/1.1"
+        else:
+            req_line = f"{method} / HTTP/1.1"
         
-        # Normalize line endings: \r\n → \n for consistent display
-        if req_display:
-            req_display = req_display.replace("\\r\\n", "\n").replace("\r\n", "\n")
-        if resp_display:
-            resp_display = resp_display.replace("\\r\\n", "\n").replace("\r\n", "\n")
+        req_lines = [req_line]
+        
+        # 添加 Headers（过滤空值）
+        if headers:
+            for k, v in headers.items():
+                if v and v.strip():
+                    req_lines.append(f"{e(k)}: {e(v)}")
+        
+        # 添加 Body
+        if body and str(body).strip():
+            req_lines.append("")
+            if isinstance(body, dict):
+                import json
+                req_lines.append(e(json.dumps(body, ensure_ascii=False, indent=2)))
+            else:
+                req_lines.append(e(str(body)))
+        
+        req_display = "\n".join(req_lines)
+        
+        # 拼接 RESPONSE 数据包
+        status_code = resp.get("status", 0)
+        resp_headers = resp.get("headers", {})
+        resp_body = resp.get("body", "")
+        
+        # HTTP 状态码文本映射
+        status_text_map = {
+            200: "OK", 201: "Created", 204: "No Content",
+            301: "Moved Permanently", 302: "Found", 304: "Not Modified",
+            400: "Bad Request", 401: "Unauthorized", 403: "Forbidden",
+            404: "Not Found", 405: "Method Not Allowed",
+            500: "Internal Server Error", 502: "Bad Gateway", 503: "Service Unavailable"
+        }
+        status_text = status_text_map.get(status_code, "")
+        
+        resp_lines = [f"HTTP/1.1 {status_code} {status_text}"]
+        
+        # 添加 Response Headers
+        if resp_headers:
+            for k, v in resp_headers.items():
+                if v and v.strip():
+                    resp_lines.append(f"{e(k)}: {e(v)}")
+        
+        # 添加 Response Body
+        if resp_body and str(resp_body).strip() and str(resp_body) != "[no body]":
+            resp_lines.append("")
+            if isinstance(resp_body, dict):
+                import json
+                resp_lines.append(e(json.dumps(resp_body, ensure_ascii=False, indent=2)))
+            else:
+                resp_lines.append(e(str(resp_body)))
+        
+        resp_display = "\n".join(resp_lines)
+        
+        elapsed = resp.get("_meta",{}).get("elapsed_ms","")
 
         poc_steps_html += f"""<div class="poc-step">
           <div class="poc-step-hdr">
-            <span class="poc-snum">Step {step.get("step","")}</span>
+            <span class="poc-snum">Step {step_num}</span>
             <span class="poc-sname">{e(step.get("name",""))}</span>
           </div>
           <div class="http-grid">
             <div class="http-pane req-pane">
               <div class="http-pane-lbl">REQUEST</div>
-              {'' if has_req_raw else f'''<div class="http-rline">
-                <span class="http-method meth-{e(req.get('method','GET')).lower()}">{e(req.get('method','GET'))}</span>
-                <span class="http-url">{e(req.get('url',''))}{params_str}</span>
-              </div>'''}<pre class="http-body">{e(req_display)}</pre>
+              <pre class="http-body">{e(req_display)}</pre>
             </div>
             <div class="http-pane resp-pane">
               <div class="http-pane-lbl">RESPONSE{f' <span class="elapsed">{elapsed}ms</span>' if elapsed else ''}</div>
-              {'' if has_resp_raw else f'''<div class="resp-sline">
-                <span class="resp-code {status_c}">{resp.get('status','—')}</span>
-                <span class="resp-ct">{e(resp.get('headers',{}).get('Content-Type',''))}</span>
-              </div>'''}<pre class="http-body resp-body">{e(resp_display)}</pre>
-              {f'<div class="ev-matches">{ev_matches}</div>' if ev_matches else ""}
+              <pre class="http-body resp-body">{e(resp_display)}</pre>
             </div>
           </div>
         </div>"""
 
-    # ── Dynamic verification
     dv_state = dyn.get("state","not_started")
     final_ev = dyn.get("final_evidence",{})
-    _snippets = final_ev.get("snippets",[])
-    # Handle both structured (dict) and flat (string) snippet formats
-    if _snippets and isinstance(_snippets[0], str):
-        dv_snips = "".join([f"""<div class="dv-snip ev-l0">
-          <code>{e(sn)}</code>
-        </div>""" for sn in _snippets])
-    else:
-        dv_snips = "".join([f"""<div class="dv-snip {strength_class(sn.get('strength','L0'))}">
-          <span class="dvsn-step">Step {sn.get('step','')}</span>
-          <span class="dvsn-type">{e(sn.get('signature_type',''))}</span>
-          <code>{e(sn.get('snippet',''))}</code>
-        </div>""" for sn in _snippets])
+    dv_summary = final_ev.get("summary","")
 
     attempts_html = "".join([f"""<div class="att-row">
-      <span class="att-num">#{att.get('attempt','')}</span>
-      <span class="att-res {'att-ok' if att.get('result')=='success' else 'att-fail'}">{att.get('result','')}</span>
-      <span class="att-strategy">{e(att.get('payload_strategy',''))}</span>
-      {f'<code class="att-snip">{e(att.get("evidence_snippet",""))}</code>' if att.get("evidence_snippet") else ""}
-    </div>""" for att in dyn.get("attempts",[])])
+      <div class="att-header">
+        <span class="att-num">#{att.get('attempt','')}</span>
+        <span class="att-strategy-label">PoC构造策略:</span>
+        <span class="att-strategy">{e(att.get('payload_strategy',''))}</span>
+      </div>
+      <div class="att-result">
+        <span class="att-res {'att-ok' if att.get('result')=='success' else 'att-fail'}">{att.get('result','')}</span>
+      </div>
+      {f'<div class="att-evidence"><code class="att-snip">{e(att.get("evidence_snippet",""))}</code></div>' if att.get("evidence_snippet") else ""}
+    </div>""" for att in dyn.get("attempts",[]) if att.get("payload_strategy")])
 
-    # ── Fix diff
     fix_html = ""
     if fix.get("before") or fix.get("after"):
         fix_html = f"""<div class="fix-block">
@@ -587,7 +626,6 @@ def build_finding(f, idx, audit_stage="static_audit"):
           </div>
         </div>"""
 
-    # 清理snippet中的行号前缀（如"L18: "）
     raw_snippet = loc.get("snippet", "")
     if raw_snippet:
         import re
@@ -601,7 +639,7 @@ def build_finding(f, idx, audit_stage="static_audit"):
     ])
 
     return f"""
-<div class="finding-card" id="{slug}">
+<div class="finding-card" id="{slug}" data-sev="{sev_val}" data-status="{status_val}">
   <div class="fc-toggle" onclick="toggleFinding('{slug}')">
     <div class="fc-toggle-left">
       <span class="fc-chevron" id="chev-{slug}">▼</span>
@@ -692,10 +730,8 @@ def build_finding(f, idx, audit_stage="static_audit"):
           <span class="dv-text">动态验证状态：{dv_state_label(dv_state)}</span>
           <span class="dv-proof">证据类型：{e(final_ev.get("proof_type","—"))}</span>
         </div>
-        <p class="dv-summary">{e(final_ev.get("summary",""))}</p>
-        {f'<div class="dv-snips">{dv_snips}</div>' if dv_snips else ""}
-        <h4 class="ph">尝试记录</h4>
-        {attempts_html}
+        <p class="dv-summary">{e(dv_summary)}</p>
+        {f'<h4 class="ph">尝试记录</h4>{attempts_html}' if attempts_html else ""}
         {f'<div class="rt-notes">{e(dyn.get("runtime_notes",""))}</div>' if dyn.get("runtime_notes") else ""}
       </div>
       '''}
@@ -752,7 +788,7 @@ body {
   background-attachment: fixed;
   color: var(--text); font-size: 14px; line-height: 1.65; min-height: 100vh;
 }
-.page { max-width: 1100px; margin: 0 auto; padding: 0 20px 24px; min-height: 100vh; display: flex; flex-direction: column; }
+.page { max-width: 1400px; margin: 0 auto; padding: 0 20px 24px; min-height: 100vh; display: flex; flex-direction: column; }
 
 /* ── TOP BAR ── */
 .topbar {
@@ -769,7 +805,7 @@ body {
 
 /* ── COVER ── */
 .cover-wrap {
-  display: grid; grid-template-columns: 1fr 340px; gap: 32px;
+  display: grid; grid-template-columns: 1fr 380px; gap: 32px;
   background: linear-gradient(135deg, #ffffff 0%, #eef5fb 50%, #e4f0f8 100%);
   border-radius: 0 0 20px 20px;
   border: 1px solid var(--border); border-top: none;
@@ -853,19 +889,126 @@ body {
 .cov-total { background:var(--teal); } .cov-t1 { background:var(--navy); }
 .cov-t2    { background:#5a9fd4; }    .cov-t3 { background:#8ec6e8; }
 .cov-pct { font-size:12px; font-weight:600; color:var(--navy); min-width:36px; text-align:right; }
-.cov-detail { display:flex; gap:16px; margin-top:10px; font-size:12px; color:var(--text3); }
-.cov-detail strong { color:var(--navy); }
 
 .status-overview { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:4px; }
 .so-item { border-radius:8px; padding:12px 14px; text-align:center; border:1px solid; }
 .so-item .so-val { display:block; font-size:24px; font-weight:800; line-height:1; margin-bottom:4px; }
 .so-item .so-lbl { font-size:11px; }
-.so-open      { background:#fff8ec; border-color:#f6c26e; } .so-open .so-val      { color:var(--sh); }
-.so-unverified{ background:#f9f0ff; border-color:#c4a8f0; } .so-unverified .so-val{ color:#7c3aed; }
 .so-confirmed { background:#fff0f0; border-color:var(--sc); } .so-confirmed .so-val { color:var(--sc); }
 .so-rv        { background:#f0fff4; border-color:#9ae6b4; } .so-rv .so-val        { color:var(--sl); }
 .so-pending   { background:#fffbec; border-color:#f6c26e; } .so-pending .so-val   { color:var(--sm); }
 .so-failed    { background:#f3f7fb; border-color:var(--border); } .so-failed .so-val  { color:var(--text3); }
+
+.code-coverage-box { display:flex; gap:16px; }
+.cc-item { flex:1; border-radius:8px; padding:14px 16px; text-align:center; border:1px solid; }
+.cc-label { display:block; font-size:12px; margin-bottom:6px; }
+.cc-value { display:block; font-size:22px; font-weight:800; }
+.cc-item-files { background:#f0f7ff; border-color:#b8d4f0; }
+.cc-item-files .cc-label { color:#4a7ab5; }
+.cc-item-files .cc-value { color:#2c5f9e; }
+.cc-item-ealoc { background:#f0fff8; border-color:#b0e8c8; }
+.cc-item-ealoc .cc-label { color:#3d8b5f; }
+.cc-item-ealoc .cc-value { color:#2a6b42; }
+
+/* ================= 严重性筛选 ================= */
+.filter-cb[value="critical"]:checked + .checkmark { border-color: #FF4D4F; background-color: #FFFFFF; color: #FF4D4F; }
+.filter-cb[value="critical"]:checked ~ .label { color: #231d2d; }
+
+.filter-cb[value="high"]:checked + .checkmark { border-color: #FA8C16; background-color: #FFFFFF; color: #FA8C16; }
+.filter-cb[value="high"]:checked ~ .label { color: #231d2d; }
+
+.filter-cb[value="medium"]:checked + .checkmark { border-color: #FAAD14; background-color: #FFFFFF; color: #FAAD14; }
+.filter-cb[value="medium"]:checked ~ .label { color: #231d2d; }
+
+.filter-cb[value="low"]:checked + .checkmark { border-color: #1890FF; background-color: #FFFFFF; color: #1890FF; }
+.filter-cb[value="low"]:checked ~ .label { color: #231d2d; }
+
+/* ================= 状态筛选 ================= */
+.filter-cb[value="confirmed"]:checked + .checkmark { border-color: #52C41A; background-color: #FFFFFF; color: #52C41A; }
+.filter-cb[value="confirmed"]:checked ~ .label { color: #231d2d; }
+
+.filter-cb[value="hypothesis"]:checked + .checkmark { border-color: #722ED1; background-color: #FFFFFF; color: #722ED1; }
+.filter-cb[value="hypothesis"]:checked ~ .label { color: #231d2d; }
+
+.filter-cb[value="failed"]:checked + .checkmark { border-color: #8C8C8C; background-color: #FFFFFF; color: #8C8C8C; }
+.filter-cb[value="failed"]:checked ~ .label { color: #231d2d; }
+
+/* ── FILTER UI (NEW) ── */
+/* 筛选栏样式 */
+.filter-bar { background: var(--white); padding: 15px; border-radius: var(--r); margin-bottom: 20px; border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.filter-group { display: flex; gap: 10px; align-items: center; }
+.filter-item { cursor: pointer; display: flex; align-items: center; gap: 5px; font-size: 13px; padding: 4px 10px; border-radius: 4px; border: 1px solid #ddd; }
+/* 颜色标记 */
+.crit-bg { border-left: 4px solid #e53e3e; }
+.high-bg { border-left: 4px solid #dd6b20; }
+.med-bg { border-left: 4px solid #d69e2e; }
+.low-bg { border-left: 4px solid #38a169; }
+.state-conf-bg { border-left: 4px solid #3182ce; }
+.state-pend-bg { border-left: 4px solid #718096; }
+.state-fail-bg { border-left: 4px solid #718096; }
+.filter-container {
+  display: flex; gap: 24px; flex-wrap: wrap; align-items: center;
+  background: var(--surf1); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 16px 24px; margin-bottom: 20px;
+  box-shadow: var(--shadow);
+}
+.filter-group { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.fg-title { font-size: 13px; font-weight: 700; color: var(--navy); }
+.fg-items { display: flex; gap: 12px; flex-wrap: wrap; }
+.filter-divider { width: 1px; height: 32px; background: var(--border); }
+
+/* Uiverse Custom Checkbox - Light Theme Adapted */
+.checkbox-wrapper {
+  --checkbox-size: 18px;
+  --checkbox-color: #c7d4d8;
+  --checkbox-shadow: rgba(59, 158, 186, 0.2);
+  display: flex; align-items: center; position: relative; cursor: pointer; padding: 4px;
+}
+.checkbox-wrapper input { position: absolute; opacity: 0; cursor: pointer; height: 0; width: 0; }
+.checkbox-wrapper .checkmark {
+  position: relative; width: var(--checkbox-size); height: var(--checkbox-size);
+  border: 2px solid var(--checkbox-border); border-radius: 6px;
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  display: flex; justify-content: center; align-items: center;
+  background: var(--surf2); box-shadow: 0 0 10px var(--checkbox-shadow); overflow: hidden;
+}
+.checkbox-wrapper .checkmark::before {
+  content: ""; position: absolute; width: 100%; height: 100%;
+  background: linear-gradient(45deg, var(--checkbox-color), var(--teal2));
+  opacity: 0; transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  transform: scale(0) rotate(-45deg);
+}
+.checkbox-wrapper input:checked ~ .checkmark::before { opacity: 1; transform: scale(1) rotate(0); }
+.checkbox-wrapper .checkmark svg {
+  width: 0; height: 0; color: #fff; z-index: 1;
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.2));
+}
+.checkbox-wrapper input:checked ~ .checkmark svg { width: 14px; height: 14px; transform: rotate(360deg); }
+.checkbox-wrapper:hover .checkmark {
+  border-color: var(--checkbox-color); transform: scale(1.1);
+  box-shadow: 0 0 15px var(--checkbox-shadow), 0 0 30px var(--checkbox-shadow), inset 0 0 5px var(--checkbox-shadow);
+}
+.checkbox-wrapper input:checked ~ .checkmark { animation: pulse 1s cubic-bezier(0.68, -0.55, 0.265, 1.55); }
+@keyframes pulse {
+  0% { transform: scale(1); box-shadow: 0 0 15px var(--checkbox-shadow); }
+  50% { transform: scale(0.9); box-shadow: 0 0 20px var(--checkbox-shadow), 0 0 35px var(--checkbox-shadow); }
+  100% { transform: scale(1); box-shadow: 0 0 15px var(--checkbox-shadow); }
+}
+.checkbox-wrapper .label {
+  margin-left: 8px; font-family: inherit; color: var(--text2);
+  font-size: 13px; font-weight: 600; opacity: 0.9; transition: all 0.3s;
+}
+.checkbox-wrapper:hover .label { opacity: 1; transform: translateX(3px); color: var(--navy); }
+.checkbox-wrapper input:checked ~ .label { color: var(--teal); }
+.checkbox-wrapper::after, .checkbox-wrapper::before {
+  content: ""; position: absolute; width: 4px; height: 4px; border-radius: 50%;
+  background: var(--checkbox-color); opacity: 0; transition: all 0.5s;
+}
+.checkbox-wrapper::before { left: -6px; top: 50%; }
+.checkbox-wrapper::after { right: -6px; top: 50%; }
+.checkbox-wrapper:hover::before { opacity: 1; transform: translateX(-6px); box-shadow: 0 0 8px var(--checkbox-color); }
+.checkbox-wrapper:hover::after { opacity: 1; transform: translateX(6px); box-shadow: 0 0 8px var(--checkbox-color); }
 
 /* ── TOC TABLE ── */
 .toc-table { width:100%; border-collapse:collapse; background:var(--surf1); box-shadow:var(--shadow); border-radius:var(--r); overflow:hidden; }
@@ -893,7 +1036,6 @@ body {
 /* ── FINDING CARD ── */
 .finding-card { background:var(--surf1); border:1px solid var(--border); border-radius:var(--r); margin-bottom:14px; box-shadow:var(--shadow); overflow:hidden; transition:box-shadow .2s; }
 .finding-card:hover { box-shadow:var(--shadow2); }
-
 .fc-toggle { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; cursor:pointer; user-select:none; background:linear-gradient(90deg,var(--surf1) 0%,var(--surf2) 100%); border-bottom:1px solid transparent; transition:background .15s; }
 .fc-toggle:hover { background:linear-gradient(90deg,var(--teal-faint) 0%,#e4f4f9 100%); }
 .fc-toggle-left { display:flex; align-items:center; gap:9px; flex:1; min-width:0; flex-wrap:wrap; }
@@ -908,12 +1050,11 @@ body {
 
 .fc-body     { overflow:hidden; transition:max-height .35s ease, opacity .3s ease; }
 .fc-body.collapsed { max-height:0 !important; opacity:0; }
-
 .fc-meta-row { display:flex; flex-wrap:wrap; gap:7px; padding:12px 20px 0; border-top:1px solid var(--border); }
 .meta-chip   { display:flex; align-items:center; gap:5px; background:var(--surf2); border:1px solid var(--border); border-radius:6px; padding:3px 9px; font-size:12px; }
 .mc-k        { color:var(--text3); margin-right:2px; }
 
-/* ── TABS ── */
+/* ── TABS & PANEL ── */
 .tabs-wrap   { padding:16px 20px 20px; }
 .tabs-nav    { display:flex; gap:2px; border-bottom:2px solid var(--border); margin-bottom:18px; flex-wrap:wrap; }
 .tbtn        { background:none; border:none; padding:8px 16px; font-size:13px; font-weight:600; color:var(--text2); cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; border-radius:6px 6px 0 0; transition:all .15s; }
@@ -921,10 +1062,8 @@ body {
 .tbtn.active { color:var(--navy); border-bottom-color:var(--teal); background:var(--teal-faint); }
 .tab-panel   { display:none; }
 .tab-panel.active { display:block; }
-
-/* ── PANEL CONTENT ── */
-.p2col  { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
-.p2col > div { min-width:0; }
+.p2col  { display:grid; grid-template-columns:1fr 1fr; gap:24px; min-width:0; }
+.p2col > div { min-width:0; max-width:100%; }
 .ph     { font-size:12px; font-weight:700; color:var(--navy); letter-spacing:.06em; text-transform:uppercase; margin:14px 0 7px; }
 .ph:first-child { margin-top:0; }
 .pdesc  { font-size:13.5px; color:var(--text); line-height:1.75; }
@@ -937,7 +1076,6 @@ body {
 .loc-row code { font-family:monospace; color:var(--navy); font-size:12px; word-break:break-all; flex:1; min-width:0; }
 .snippet  { background:#1e3a5f; color:#a8d8e4; font-family:monospace; font-size:12px; padding:10px 14px; border-radius:7px; overflow-x:auto; border-left:3px solid var(--teal); line-height:1.6; width:100%; }
 
-/* flow */
 .flow-chain { display:flex; flex-direction:column; gap:3px; margin:8px 0; }
 .flow-step  { background:var(--surf2); border:1px solid var(--border); border-radius:7px; padding:10px 13px; border-left-width:4px; }
 .flow-src  { border-left-color:var(--sl); } .flow-sink { border-left-color:var(--sc); } .flow-prop { border-left-color:var(--sm); }
@@ -950,14 +1088,12 @@ body {
 .flow-desc { font-size:13px; color:var(--text); }
 .flow-code { display:block; font-family:monospace; font-size:12px; color:var(--navy); background:rgba(30,58,95,.06); padding:4px 8px; border-radius:4px; margin-top:4px; }
 
-/* attack surface */
 .as-card   { background:var(--surf2); border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:14px; }
 .as-grid   { display:flex; flex-wrap:wrap; gap:8px 22px; margin-top:8px; }
 .as-item   { display:flex; flex-direction:column; }
 .as-k      { font-size:11px; color:var(--text3); text-transform:uppercase; letter-spacing:.06em; }
 .as-v      { font-size:13px; color:var(--navy); font-weight:500; }
 
-/* bypass */
 .bypass-box{ background:#fffbec; border:1px solid #f6c26e; border-radius:8px; padding:14px; margin:12px 0; }
 .bypass-hdr{ font-size:13px; font-weight:700; margin-bottom:10px; }
 .bp-yes { color:var(--sh); } .bp-no { color:var(--sl); }
@@ -967,7 +1103,6 @@ body {
 .bp-payload{ display:block; font-family:monospace; font-size:12px; background:rgba(0,0,0,.05); padding:3px 8px; border-radius:4px; margin:3px 0; }
 .bp-reason { font-size:12.5px; color:var(--text2); }
 
-/* evid table */
 .evid-tbl  { width:100%; border-collapse:collapse; font-size:12px; margin:8px 0; }
 .evid-tbl th { background:var(--surf2); padding:6px 10px; text-align:left; font-weight:700; color:var(--text2); border-bottom:1px solid var(--border); }
 .evk { font-family:monospace; color:var(--navy); font-weight:700; padding:5px 10px; border-bottom:1px solid var(--border); }
@@ -976,7 +1111,6 @@ body {
 .cr-k      { color:var(--text3); font-weight:700; white-space:nowrap; }
 .cr-v      { color:var(--text2); }
 
-/* ctrl */
 .ctrl      { border-radius:7px; padding:9px 13px; margin-bottom:7px; border:1px solid; }
 .ctrl-bypass { background:#fff8ec; border-color:#f6c26e; }
 .ctrl-ok     { background:#f0fff4; border-color:#9ae6b4; }
@@ -988,7 +1122,6 @@ body {
 .ctrl-loc  { font-family:monospace; font-size:11px; color:var(--text3); }
 .ctrl-note { font-size:12px; color:var(--text2); margin-top:4px; padding-left:2px; }
 
-/* dyn verify */
 .dv-banner { display:flex; align-items:center; gap:12px; padding:11px 16px; border-radius:8px; margin-bottom:12px; font-size:14px; font-weight:600; border:1px solid; }
 .dv-icon   { font-size:16px; }
 .dv-text   { flex:1; }
@@ -1000,22 +1133,21 @@ body {
 .dv-progress   { background:#fffbec; color:var(--sm); border-color:var(--sm); }
 .dv-notstarted { background:var(--surf2); color:var(--text3); border-color:var(--border); }
 .dv-summary    { font-size:13.5px; color:var(--text); line-height:1.75; margin-bottom:12px; }
-.dv-snips      { display:flex; flex-direction:column; gap:5px; margin-bottom:14px; }
-.dv-snip       { display:flex; align-items:center; gap:10px; padding:7px 12px; border-radius:7px; font-size:12px; border:1px solid; }
-.dvsn-step     { font-weight:700; color:var(--navy); }
-.dvsn-type     { color:var(--text3); min-width:88px; }
-.dv-snip code  { font-family:monospace; font-size:11.5px; }
 .ev-l3 { background:#e6f4ff; border-color:#90c8f0; } .ev-l2 { background:#f0fff4; border-color:#9ae6b4; }
 .ev-l1 { background:#fffbec; border-color:#f6c26e; } .ev-l0 { background:var(--surf2); border-color:var(--border); }
-.att-row { display:flex; align-items:flex-start; gap:9px; padding:7px 0; border-bottom:1px solid var(--border); flex-wrap:wrap; font-size:13px; }
-.att-num { font-weight:800; color:var(--navy); min-width:22px; }
-.att-res  { padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
-.att-ok   { background:#f0fff4; color:var(--sl); } .att-fail { background:#fff0f0; color:var(--sc); }
-.att-strategy { color:var(--text2); flex:1; }
-.att-snip { font-family:monospace; font-size:11px; background:var(--surf2); padding:2px 7px; border-radius:4px; color:var(--navy); }
+.att-row { display:flex; flex-direction:column; gap:6px; padding:12px 0; border-bottom:1px solid var(--border); }
+.att-header { display:flex; align-items:center; gap:8px; }
+.att-num { font-weight:800; color:var(--navy); min-width:28px; font-size:13px; }
+.att-strategy-label { font-size:12px; font-weight:700; color:var(--teal); }
+.att-strategy { font-size:13px; color:var(--text); flex:1; }
+.att-result { margin-left: 28px; }
+.att-res  { padding:3px 10px; border-radius:10px; font-size:12px; font-weight:700; display:inline-block; }
+.att-ok   { background:#f0fff4; color:var(--sl); border:1px solid var(--sl); }
+.att-fail { background:#fff0f0; color:var(--sc); border:1px solid var(--sc); }
+.att-evidence { margin-left: 28px; background:var(--surf2); border-radius:6px; padding:8px 10px; border-left:3px solid var(--teal); }
+.att-snip { font-family:monospace; font-size:11.5px; color:var(--navy); display:block; line-height:1.6; white-space:pre-wrap; word-break:break-word; }
 .rt-notes { margin-top:10px; background:var(--surf2); border-radius:6px; padding:9px 13px; font-size:12.5px; color:var(--text2); }
 
-/* PoC */
 .poc-banner { padding:10px 16px; border-radius:8px; font-size:13px; font-weight:700; margin-bottom:12px; border:1px solid; }
 .poc-success  { background:#f0fff4; color:var(--sl); border-color:var(--sl); }
 .poc-failure  { background:#fff0f0; color:var(--sc); border-color:var(--sc); }
@@ -1028,31 +1160,14 @@ body {
 .poc-step-hdr { display:flex; align-items:center; gap:9px; margin-bottom:9px; }
 .poc-snum     { background:var(--navy); color:#c8dde8; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:800; letter-spacing:.06em; }
 .poc-sname    { font-size:13px; font-weight:600; color:var(--navy); }
-.http-grid    { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-.http-pane    { background:#1a2e45; border-radius:8px; padding:12px 14px; overflow:hidden; }
+.http-grid    { display:grid; grid-template-columns:1fr 1fr; gap:10px; min-width:0; align-items:stretch; }
+.http-pane    { background:#1a2e45; border-radius:8px; padding:12px 14px; overflow-x:auto; min-width:0; min-height:100px; display:flex; flex-direction:column; }
 .resp-pane    { background:#12243a; }
 .http-pane-lbl{ font-size:10px; font-weight:800; letter-spacing:.12em; color:#7fb8cc; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
 .elapsed      { font-size:10px; color:var(--teal); font-weight:600; }
-.http-rline   { display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
-.http-method  { padding:2px 9px; border-radius:5px; font-size:11px; font-weight:800; letter-spacing:.06em; }
-.meth-get    { background:#e6f4ff; color:#1a6bc4; } .meth-post   { background:#f0fff4; color:var(--sl); }
-.meth-put    { background:#fffbec; color:var(--sm); } .meth-delete { background:#fff0f0; color:var(--sc); }
-.http-url     { font-family:monospace; font-size:12px; color:#a8d8e4; word-break:break-all; }
-.http-hdrs    { font-family:monospace; font-size:11px; white-space:pre-wrap; word-break:break-all; margin-bottom:6px; line-height:1.7; }
-.hdr-key { color:#4ab9c4; } .hdr-col { color:#5a7a8a; } .hdr-val { color:#a0cad8; }
-.http-body    { font-family:monospace; font-size:11px; white-space:pre-wrap; word-break:break-word; word-wrap:break-word; color:#b8d4e0; background:rgba(255,255,255,.04); padding:6px 8px; border-radius:4px; line-height:1.5; overflow-x:auto; }
-.resp-body    { border-left:3px solid var(--teal); }
-.resp-sline   { display:flex; align-items:center; gap:9px; margin-bottom:8px; }
-.resp-code    { font-size:16px; font-weight:800; font-family:monospace; }
-.s2xx { color:#4cae7a; } .s3xx { color:var(--teal); } .s4xx { color:var(--sm); } .s5xx { color:var(--sc); } .sxxx { color:var(--text3); }
-.resp-ct      { font-size:11px; color:#5a7a8a; }
-.ev-matches   { display:flex; flex-direction:column; gap:4px; margin-top:8px; }
-.ev-match     { display:flex; align-items:center; gap:7px; padding:5px 8px; border-radius:5px; font-size:11px; border:1px solid; }
-.em-type      { font-weight:700; color:var(--navy); }
-.em-str       { padding:1px 6px; border-radius:7px; font-size:10px; font-weight:800; background:var(--navy); color:#c8dde8; }
-.em-snip      { font-family:monospace; font-size:11px; }
+.http-body    { font-family:monospace; font-size:11px; white-space:pre-wrap; word-break:break-word; word-wrap:break-word; color:#b8d4e0; background:rgba(255,255,255,.04); padding:6px 8px; border-radius:4px; line-height:1.5; overflow-x:auto; min-height:80px; flex:1; box-sizing:border-box; margin:0; }
+.resp-body    { border-left:3px solid var(--teal); min-height:80px; }
 
-/* remediation */
 .rem-grid  { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
 .rem-short { background:#fff8ec; border:1px solid var(--sh); border-radius:8px; padding:14px 16px; }
 .rem-long  { background:#e8f5fe; border:1px solid #90c8f0; border-radius:8px; padding:14px 16px; }
@@ -1079,12 +1194,80 @@ body {
   .cover-title { font-size:22px; }
   .cover-right { flex-direction:row; flex-wrap:wrap; justify-content:flex-start; }
   .cover-stat-row { grid-template-columns:repeat(4,1fr); }
+  .slide-panel { width: 100% !important; }
 }
 @media print {
   .topbar { display:none; }
   .fc-body { max-height:none !important; opacity:1 !important; }
   .tab-panel { display:block !important; }
-  .tabs-nav { display:none; }
+  .tabs-nav, .filter-container, .slide-overlay, .slide-panel { display:none !important; }
+}
+
+/* ── SLIDE PANEL ── */
+.slide-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(30, 58, 95, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 500;
+  opacity: 0; visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+.slide-overlay.active {
+  opacity: 1; visibility: visible;
+}
+.slide-panel {
+  position: fixed; top: 0; right: 0;
+  width: 80%; max-width: 1200px; height: 100vh;
+  background: var(--surf1);
+  box-shadow: -4px 0 24px rgba(30, 58, 95, 0.2);
+  z-index: 501;
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-y: auto;
+  display: flex; flex-direction: column;
+}
+.slide-panel.active {
+  transform: translateX(0);
+}
+.slide-panel-header {
+  position: sticky; top: 0; z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+}
+.slide-close-btn {
+  width: 36px; height: 36px;
+  border: none; background: var(--surf2);
+  border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text2); font-size: 20px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.slide-close-btn:hover {
+  background: var(--surf3);
+  color: var(--navy);
+  transform: rotate(90deg);
+}
+.slide-panel-title {
+  flex: 1; min-width: 0;
+  font-size: 16px; font-weight: 700; color: var(--navy);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.slide-panel-badges {
+  display: flex; gap: 8px; flex-shrink: 0;
+}
+.slide-panel-body {
+  padding: 20px 24px 40px;
+  flex: 1;
+}
+
+/* ── HIDE FINDINGS SECTION (使用侧滑面板代替) ── */
+#findings {
+  display: none !important;
 }
 """
 
@@ -1093,6 +1276,29 @@ body {
 # ──────────────────────────────────────────────
 
 JS = """
+// 筛选逻辑
+function updateFilters() {
+    const checked = Array.from(document.querySelectorAll('.filter-cb:checked')).map(cb => {
+        const type = cb.getAttribute('data-type');
+        const val = cb.value;
+        return `${type}-${val}`;
+    });
+    document.querySelectorAll('.toc-row').forEach(row => {
+        const sevBadge = row.querySelector('.badge');
+        const sevClass = sevBadge ? sevBadge.className.split(' ').find(c => c.startsWith('sev-')) : null;
+        const statusBadges = row.querySelectorAll('.badge');
+        const statusClass = statusBadges.length > 1 ? statusBadges[1].className.split(' ').find(c => c.startsWith('status-')) : null;
+        const match = (sevClass && checked.includes(sevClass)) || (statusClass && checked.includes(statusClass));
+        row.style.display = match ? '' : 'none';
+    });
+}
+
+function toggleAll(el) {
+    // 只控制过滤复选框，不再包含全选按钮自己
+    document.querySelectorAll('.filter-cb').forEach(cb => cb.checked = el.checked);
+    updateFilters();
+}
+
 function toggleFinding(slug) {
   var body = document.getElementById('body-' + slug);
   var chev = document.getElementById('chev-' + slug);
@@ -1106,17 +1312,76 @@ function toggleFinding(slug) {
   }
 }
 
-function jumpTo(slug) {
+function openSlidePanel(slug) {
   var el = document.getElementById(slug);
   if (!el) return;
+  
   var body = document.getElementById('body-' + slug);
   var chev = document.getElementById('chev-' + slug);
+  
   if (body && body.classList.contains('collapsed')) {
     body.classList.remove('collapsed');
     if (chev) chev.classList.remove('collapsed');
   }
-  setTimeout(function(){ el.scrollIntoView({behavior:'smooth', block:'start'}); }, 80);
+  
+  var titleEl = el.querySelector('.fc-title-txt');
+  var badgesContainer = el.querySelector('.fc-toggle-left');
+  var title = titleEl ? titleEl.textContent : '漏洞详情';
+  
+  var badgesHtml = '';
+  if (badgesContainer) {
+    var badges = badgesContainer.querySelectorAll('.badge');
+    badges.forEach(function(badge) {
+      badgesHtml += badge.outerHTML;
+    });
+  }
+  
+  var contentHtml = '';
+  if (body) {
+    contentHtml = body.innerHTML;
+  }
+  
+  document.getElementById('slidePanelTitle').textContent = title;
+  document.getElementById('slidePanelBadges').innerHTML = badgesHtml;
+  document.getElementById('slidePanelBody').innerHTML = contentHtml;
+  
+  document.getElementById('slideOverlay').classList.add('active');
+  document.getElementById('slidePanel').classList.add('active');
+  document.body.style.overflow = 'hidden';
+  
+  setTimeout(function() {
+    var panel = document.getElementById('slidePanel');
+    panel.scrollTop = 0;
+    
+    panel.querySelectorAll('.tabs-wrap').forEach(function(wrap) {
+      if (!wrap.dataset.initialized) {
+        wrap.querySelectorAll('.tbtn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var tab = btn.getAttribute('data-tab');
+            wrap.querySelectorAll('.tbtn').forEach(function(b){ b.classList.remove('active'); });
+            wrap.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
+            btn.classList.add('active');
+            var panel = wrap.querySelector('[data-panel="' + tab + '"]');
+            if (panel) panel.classList.add('active');
+          });
+        });
+        wrap.dataset.initialized = 'true';
+      }
+    });
+  }, 100);
 }
+
+function closeSlidePanel() {
+  document.getElementById('slideOverlay').classList.remove('active');
+  document.getElementById('slidePanel').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeSlidePanel();
+  }
+});
 
 document.querySelectorAll('.tabs-wrap').forEach(function(wrap) {
   wrap.querySelectorAll('.tbtn').forEach(function(btn) {
@@ -1130,6 +1395,30 @@ document.querySelectorAll('.tabs-wrap').forEach(function(wrap) {
     });
   });
 });
+
+// === Filter Logic ===
+function applyFilters() {
+  var checkedSevs = Array.from(document.querySelectorAll('.filter-cb[data-type="sev"]:checked')).map(function(cb) { return cb.value; });
+  var checkedStatuses = Array.from(document.querySelectorAll('.filter-cb[data-type="status"]:checked')).map(function(cb) { return cb.value; });
+
+  // Filter TOC rows
+  document.querySelectorAll('.toc-row').forEach(function(row) {
+    var matchSev = checkedSevs.length === 0 || checkedSevs.includes(row.getAttribute('data-sev'));
+    var matchStatus = checkedStatuses.length === 0 || checkedStatuses.includes(row.getAttribute('data-status'));
+    row.style.display = (matchSev && matchStatus) ? '' : 'none';
+  });
+
+  // Filter Finding cards
+  document.querySelectorAll('.finding-card').forEach(function(card) {
+    var matchSev = checkedSevs.length === 0 || checkedSevs.includes(card.getAttribute('data-sev'));
+    var matchStatus = checkedStatuses.length === 0 || checkedStatuses.includes(card.getAttribute('data-status'));
+    card.style.display = (matchSev && matchStatus) ? '' : 'none';
+  });
+}
+
+document.querySelectorAll('.filter-cb').forEach(function(cb) {
+  cb.addEventListener('change', applyFilters);
+});
 """
 
 
@@ -1140,7 +1429,7 @@ document.querySelectorAll('.tabs-wrap').forEach(function(wrap) {
 def build_html(data):
     audit    = data.get("audit",{})
     findings = data.get("findings",[])
-    stage_map = {"static_audit":"静态代码审计","dynamic_verification":"动态漏洞验证","report":"最终安全报告"}
+    stage_map = {"static_audit":"静态代码审计","dynamic_verification":"静态代码审计+动态漏洞验证","report":"最终安全报告"}
     stage = stage_map.get(audit.get("stage",""), audit.get("stage",""))
     audit_stage = audit.get("stage", "static_audit")
     title = audit.get("title","代码安全审计报告")
@@ -1180,6 +1469,16 @@ def build_html(data):
     <span>Schema v{e(data.get("schema_version","3.0"))} · 审计编号 {e(audit.get("audit_id","—"))}</span>
     <span>生成于 {datetime.now().strftime("%Y-%m-%d %H:%M")}</span>
   </footer>
+</div>
+
+<div class="slide-overlay" id="slideOverlay" onclick="closeSlidePanel()"></div>
+<div class="slide-panel" id="slidePanel">
+  <div class="slide-panel-header">
+    <div class="slide-panel-badges" id="slidePanelBadges"></div>
+    <div class="slide-panel-title" id="slidePanelTitle">漏洞详情</div>
+    <button class="slide-close-btn" onclick="closeSlidePanel()" title="关闭">✕</button>
+  </div>
+  <div class="slide-panel-body" id="slidePanelBody"></div>
 </div>
 
 <script>{JS}</script>

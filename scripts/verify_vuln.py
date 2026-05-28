@@ -104,6 +104,7 @@ BODY_TRUNCATE_LEN = 4096
 BODY_EVIDENCE_WINDOW = 1200
 BODY_HEAD_TAIL_LEN = 1500
 PLACEHOLDER_PATTERN = re.compile(r"\$\{([^}]+)\}")
+POC_SKELETON_EVIDENCE = "PoC 骨架已初始化，尚未写入运行时证据。"
 
 # ─── 实质性证据签名库（与 references/exploit-success-signatures.md 对齐） ───────
 # 每个签名条目：(regex_str, strength, flags). strength ∈ {"L2","L3"}.
@@ -764,6 +765,16 @@ def normalize_runtime_evidence(finding: dict) -> None:
     normalize_cleanup_metadata(finding)
 
 
+def normalize_pending_skeleton_result(finding: dict) -> None:
+    """Keep merge output pending when the PoC still only has the initialized skeleton."""
+    poc = finding.get("poc")
+    if not isinstance(poc, dict):
+        return
+    if poc.get("evidence") == POC_SKELETON_EVIDENCE:
+        poc["result"] = "pending"
+        finding["status"] = "HYPOTHESIS"
+
+
 def load_credentials(path: Path, role: str | None = None) -> dict[str, Any]:
     """Load extract_credentials.py output and return a dict with cookies/headers."""
     if not path.exists():
@@ -1056,6 +1067,7 @@ def merge_subfiles(subfile_paths: list[Path], main_draft_path: Path,
             continue
 
         # Keys that Phase 4 may have updated; copy whichever the sub-file has set.
+        normalize_pending_skeleton_result(sub)
         normalize_runtime_evidence(sub)
         for key in ("poc", "status", "evidence_level", "finding_class", "dynamic_verification",
                     "attack_path", "tracking_completeness", "evidence_refs", "x_finding_class",
@@ -1070,6 +1082,7 @@ def merge_subfiles(subfile_paths: list[Path], main_draft_path: Path,
 
     # Atomic write back
     for finding in main_data.get("findings", []):
+        normalize_pending_skeleton_result(finding)
         normalize_runtime_evidence(finding)
     tmp = main_draft_path.with_suffix(main_draft_path.suffix + ".tmp")
     tmp.write_text(json.dumps(main_data, indent=2, ensure_ascii=False), encoding="utf-8")

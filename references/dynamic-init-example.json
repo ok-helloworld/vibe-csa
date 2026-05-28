@@ -161,7 +161,7 @@
                     "cookies": {
                         "<cookie_name>": "<cookie_value>"
                     },
-                    "raw": "<完整原始HTTP请求>"
+                    "raw": ""
                 },
                 "response": {
                     "status": 200,
@@ -170,7 +170,7 @@
                         "Server": "Apache/2.4.54 (Debian)",
                         "Content-Type": "text/html; charset=utf-8"
                     },
-                    "raw": "<完整原始HTTP响应>",
+                    "raw": "",
                     "body": "<响应体内容>",
                     "body_truncated": false,
                     "body_full_length": 0,

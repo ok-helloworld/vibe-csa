@@ -1,18 +1,13 @@
-# vibe-csa Multi-Agent Index
+# vibe-csa 多智能体索引
 
-This file is now a lightweight index. The detailed rules have been split by
-stage to keep responsibilities clearer.
+该文件现已改为一个轻量级索引。详细规则已按阶段拆分，以便职责划分更加清晰。
 
-## Documents
+## 文档
 
-- Stage 1 static audit: `{SKILL_ROOT}/core/static-multi-agent.md`
-- Stage 2 dynamic verification: `{SKILL_ROOT}/core/dynamic-multi-agent.md`
+- Stage 1 静态审计：`{SKILL_ROOT}/core/static-multi-agent.md`
+- Stage 2 动态验证：`{SKILL_ROOT}/core/dynamic-multi-agent.md`
 
-## When To Read
+## 何时阅读
 
-- Read `static-multi-agent.md` when creating or running Stage 1 static agents,
-  generating `workDir/agent-results/*.json`, or merging into
-  `workDir/static-merged.json`.
-- Read `dynamic-multi-agent.md` when creating or running Stage 2
-  `dynamic-verifier` agents, claiming work from `workDir/dynamic-state.json`,
-  or writing `workDir/findings/FINDING-*.json`.
+- 当创建或运行 Stage 1 静态 Agent、生成 `workDir/agent-results/*.json`，或合并到 `workDir/static-merged.json` 时，请阅读 `static-multi-agent.md`。
+- 当创建或运行 Stage 2 的 `dynamic-verifier` Agent、从 `workDir/dynamic-state.json` 领取任务，或写入 `workDir/findings/FINDING-*.json` 时，请阅读 `dynamic-multi-agent.md`。

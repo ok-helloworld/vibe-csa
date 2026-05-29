@@ -3,8 +3,8 @@ name: vibe-csa
 description: "Vibe CSA (Code Security Audit)，白盒代码安全审计能力，三阶段工作流程：静态代码审计、动态漏洞验证、报告生成；AI 代码审计，采用多 Agent 智能体静态审计+动态验证模式；最终生成稳定的 HTML、Word 格式安全评估报告。触发场景：代码审计、AI 代码审计、AI 漏洞评估、VIBE-CSA 专项检测。"
 metadata:
   author: helloworld
-  version: "1.0.3"
-  date: 2026-05-20
+  version: "1.0.4"
+  date: 2026-05-29
 ---
 # vibe-csa: 代码安全审计三阶段协议
 
@@ -78,7 +78,7 @@ Stage 3 报告生成
 ### Stage 1 静态代码审计
 
 #### Stage 1.1 multi Agent
-- **必须**根据 `{SKILL_ROOT}/core/static-multi-agent.md` 创建多 Agent 独立分工、并发执行
+- **必须完整读取** `{SKILL_ROOT}/core/static-multi-agent.md` 创建多 Agent 独立分工、并发执行
 - 每个 Agent 开始审计前，须使用 `scripts/prepare_static_aegnt_result.py` 生成静态审计骨架文件，脚本运行示例：`python {SKILL_ROOT}/scripts/prepare_static_aegnt_result.py {agentname}`，骨架文件会保存至 `workDir/agent-results/*.json`，比如 `static-deser` agent，生成的最终文件为 `workDir/agent-results/agent-static-deser.json`
 - 铁律：每个 Agent 需要将各自的骨架文件的所有字段全部回填（需要基于审计结果回填，不得回填虚假数据）。
 - `findings`字段可结合实际漏洞审计结果扩展多条，漏洞标题、中文漏洞类型、bug 分类标签、`vuln_type` 优先从 `references/bug-categories.md` 选择
@@ -140,7 +140,7 @@ python {SKILL_ROOT}/scripts/prepare_dynamic_pocs.py \
 - 若用户提供账号密码，或存在 `analysis.attack_surface.auth_required=true`，或存在 `required_role`，必须先调用 `scripts/prepare_auth_session.py` / `scripts/extract_credentials.py`，让用户在浏览器中手动登录并生成 `workDir/sessions/creds.json`
 
 #### Stage 2.3 创建并行 dynamic-verifier 子 Agent
-- 在 `workDir/dynamic-state.json`、对应的 `workDir/findings/FINDING-*.json` 以及所需认证上下文准备完成后，再根据 `{SKILL_ROOT}/core/dynamic-multi-agent.md`，按照当前 Stage 2 队列中可领取的 `findings[].queue_state="pending"` finding 数量，按需创建 `1~5` 个 `dynamic-verifier` 子 Agent 并发执行漏洞验证，提高漏洞验证效率；子 Agent 不按漏洞等级分组创建，而是统一从 `dynamic-state.json` 中领取任务
+- 在 `workDir/dynamic-state.json`、对应的 `workDir/findings/FINDING-*.json` 以及所需认证上下文准备完成后，再**必须完整读取** `{SKILL_ROOT}/core/dynamic-multi-agent.md`，按照当前 Stage 2 队列中可领取的 `findings[].queue_state="pending"` finding 数量，按需创建 `1~5` 个 `dynamic-verifier` 子 Agent 并发执行漏洞验证，提高漏洞验证效率；子 Agent 不按漏洞等级分组创建，而是统一从 `dynamic-state.json` 中领取任务
 - 若 Stage 2.1 已为队列项写入 `assigned_slot`，则创建子 Agent 时必须明确告知其只负责对应槽位的任务；子 Agent 仅领取 `assigned_slot` 与自身一致、且 `findings[].queue_state="pending"` 的 finding，避免并行领取同一任务
 - `dynamic-verifier` 子 Agent 应尽量通过 `dynamic-state.json` 和对应的 finding 文件传递状态与结果，避免将详细验证过程、长响应内容和中间推理回灌主流程上下文
 

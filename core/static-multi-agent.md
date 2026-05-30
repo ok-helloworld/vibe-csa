@@ -25,12 +25,12 @@
 
 | Agent 标识名 | Agent 专家角色 | 关注点 |
 | --- | --- | --- |
-| `static-injection` | 注入利用面审计专家 | SQL 注入、命令注入、代码注入、SSTI、表达式注入、LDAP/XPath 注入、NoSQL 注入、GraphQL 注入、ORM/HQL/JPQL 注入、Header/CRLF 注入 |
-| `static-auth` | 认证授权与接口访问控制审计专家 | 登录绕过、API 接口鉴权缺失、IDOR/BOLA、垂直/水平越权、权限提升、Session/JWT/OAuth/OIDC 问题、会话固定、多租户隔离缺失、API Key/签名认证缺陷 |
-| `static-file-ssrf` | 请求目标与文件访问链路审计专家 | SSRF、上传、任意文件读写、路径穿越、文件包含、XXE、URL 校验缺陷、开放重定向链入 SSRF、Host/绝对 URI 信任、Zip Slip、符号链接/临时文件风险 |
-| `static-deser` | 反序列化与危险对象处理审计专家 | Java/PHP/Python 反序列化、JNDI、对象注入、危险 gadget 链、Fastjson/Jackson、YAML、XMLDecoder、不安全对象绑定、危险反射/类加载 |
-| `static-logic` | 业务逻辑与状态机安全审计专家 | 支付篡改、价格/库存/优惠券篡改、状态绕过、审批流绕过、竞态条件、重放与幂等缺失、CSRF、Webhook 伪造、批量滥用、限流/配额绕过 |
-| `static-info` | 敏感信息暴露与安全配置审计专家 | 密钥泄露、硬编码凭据、弱加密、不安全随机数、错误证书校验、调试/管理接口暴露、错误信息泄露、CORS、Host 信任、安全响应头缺失、缓存投毒相关配置风险 |
+| `static-injection` | 注入利用面审计专家 | SQL 注入、命令注入、代码注入、SSTI、表达式注入、LDAP/XPath 注入、NoSQL 注入、GraphQL 注入、ORM/HQL/JPQL 注入、Header/CRLF 注入、反射型 XSS、存储型 XSS、DOM XSS、HTTP 参数污染、SSI 注入 |
+| `static-auth` | 认证授权与接口访问控制审计专家 | 登录绕过、API 接口鉴权缺失、对象级/功能级授权缺陷、垂直/水平越权与提权、Session/JWT/OAuth/OIDC 问题、会话固定、多租户隔离缺失、API Key/签名认证缺陷、密码重置/找回流程缺陷、短信/邮箱验证码校验缺陷、OAuth 回调校验缺陷、暴力破解、弱密码、Cookie 验证错误 |
+| `static-file-ssrf` | 请求目标与文件访问链路审计专家 | SSRF、上传、任意文件读写、任意文件创建/删除、路径穿越、文件包含、XXE、URL 校验缺陷、URL 重定向、开放重定向链入 SSRF、重定向跟随导致的 SSRF、HTTP请求走私、Host/绝对 URI 信任、Zip Slip、符号链接/临时文件风险、下载功能任意文件读取、对象存储签名 URL 滥用 |
+| `static-deser` | 反序列化与危险对象处理审计专家 | Java/PHP/Python 反序列化、JNDI、对象注入、危险 gadget 链、Fastjson/Jackson、YAML、XMLDecoder、不安全对象绑定、多态类型绑定滥用、危险 Bean/对象自动绑定、危险反射/类加载 |
+| `static-logic` | 业务逻辑与状态机安全审计专家 | 支付篡改、价格/库存/优惠券篡改、订单金额计算缺陷、状态绕过、审批流绕过、竞态条件、重放与幂等缺失、CSRF、Webhook 伪造、批量滥用、批量导入导出越权、限流/配额绕过、注册/邀请/优惠券薅羊毛、账户合并/租户切换逻辑错误 |
+| `static-info` | 敏感信息暴露与安全配置审计专家 | 密钥泄露、硬编码凭据、弱加密、不安全随机数、错误证书校验、调试/管理接口暴露、错误信息泄露、CORS、安全响应头缺失、缓存投毒相关配置风险、CSP 缺失或配置不当、点击劫持防护缺失、Swagger/GraphQL introspection 暴露、目录索引/备份文件暴露 |
 
 
 ## 每个 Agent 必须遵守的共同规则

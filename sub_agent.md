@@ -60,7 +60,7 @@
 - `{SKILL_ROOT}/core/static-multi-agent.md`
 
 执行要求：
-- 分析业务逻辑类漏洞，重点关注支付篡改、竞态条件、状态机绕过、CSRF、参数篡改、批量操作越权、Webhook 伪造、API 滥用等问题。
+- 分析业务逻辑类漏洞，重点关注支付篡改、价格/库存/优惠券篡改、订单金额计算缺陷、状态绕过、审批流绕过、竞态条件、重放与幂等缺失、CSRF、Webhook 伪造、批量滥用、批量导入导出越权、限流/配额绕过、注册/邀请/优惠券薅羊毛、账户合并/租户切换逻辑错误等问题。
 - 严格参考规范文档中关于输入范围、任务分工、结果回填、静态输出、摘要块与合并约束的要求执行。
 
 若本模板与 Agent 规范文档冲突，以 `{SKILL_ROOT}/core/static-multi-agent.md` 为准。
@@ -80,7 +80,7 @@
 - `{SKILL_ROOT}/core/static-multi-agent.md`
 
 执行要求：
-- 分析反序列化类漏洞，重点关注 Java/PHP/Python 反序列化、JNDI、Fastjson/Jackson、YAML、XMLDecoder、不安全反射调用等入口。
+- 分析反序列化类漏洞，重点关注 Java/PHP/Python 反序列化、JNDI、对象注入、危险 gadget 链、Fastjson/Jackson、YAML、XMLDecoder、不安全对象绑定、多态类型绑定滥用、危险 Bean/对象自动绑定、危险反射/类加载等入口与利用链。
 - 严格参考规范文档中关于输入范围、任务分工、结果回填、静态输出、摘要块与合并约束的要求执行。
 
 若本模板与 Agent 规范文档冲突，以 `{SKILL_ROOT}/core/static-multi-agent.md` 为准。
@@ -100,7 +100,7 @@
 - `{SKILL_ROOT}/core/static-multi-agent.md`
 
 执行要求：
-- 分析请求伪造与文件操作类漏洞，重点关注 SSRF、文件上传、路径遍历、文件包含、XXE、任意文件读写等问题。
+- 分析请求伪造与文件操作类漏洞，重点关注 SSRF、文件上传、任意文件读写、任意文件创建/删除、路径遍历、文件包含、XXE、URL 校验缺陷、URL 重定向、开放重定向链入 SSRF、重定向跟随导致的 SSRF、HTTP请求走私、Host/绝对 URI 信任、Zip Slip、符号链接/临时文件风险、下载功能任意文件读取、对象存储签名 URL 滥用等问题。
 - 严格参考规范文档中关于输入范围、任务分工、结果回填、静态输出、摘要块与合并约束的要求执行。
 
 若本模板与 Agent 规范文档冲突，以 `{SKILL_ROOT}/core/static-multi-agent.md` 为准。
@@ -120,7 +120,7 @@
 - `{SKILL_ROOT}/core/static-multi-agent.md`
 
 执行要求：
-- 分析注入类漏洞，重点关注 SQL 注入、命令注入、代码注入、模板注入、表达式注入、LDAP 注入、XPath 注入等问题。
+- 分析注入类漏洞，重点关注 SQL 注入、命令注入、代码注入、模板注入、表达式注入、LDAP 注入、XPath 注入、NoSQL 注入、GraphQL 注入、ORM/HQL/JPQL 注入、Header/CRLF 注入、反射型 XSS、存储型 XSS、DOM XSS、HTTP 参数污染、SSI 注入等问题。
 - 严格参考规范文档中关于输入范围、任务分工、结果回填、静态输出、摘要块与合并约束的要求执行。
 
 若本模板与 Agent 规范文档冲突，以 `{SKILL_ROOT}/core/static-multi-agent.md` 为准。
@@ -140,7 +140,7 @@
 - `{SKILL_ROOT}/core/static-multi-agent.md`
 
 执行要求：
-- 分析认证授权类漏洞，重点关注认证绕过、IDOR、垂直越权、会话固定、JWT 攻击、OAuth/OIDC 配置缺陷、API Key 泄露等问题。
+- 分析认证授权类漏洞，重点关注登录绕过、API 接口鉴权缺失、对象级/功能级授权缺陷、垂直/水平越权与提权、Session/JWT/OAuth/OIDC 问题、会话固定、多租户隔离缺失、API Key/签名认证缺陷、密码重置/找回流程缺陷、短信/邮箱验证码校验缺陷、OAuth 回调校验缺陷、暴力破解、弱密码、Cookie 验证错误等问题。
 - 严格参考规范文档中关于输入范围、任务分工、结果回填、静态输出、摘要块与合并约束的要求执行。
 
 若本模板与 Agent 规范文档冲突，以 `{SKILL_ROOT}/core/static-multi-agent.md` 为准。
@@ -160,7 +160,7 @@
 - `{SKILL_ROOT}/core/static-multi-agent.md`
 
 执行要求：
-- 分析信息泄露与加密安全类漏洞，重点关注敏感信息泄露、硬编码密钥、弱加密算法、不安全随机数、调试接口暴露、错误信息泄露、CORS 配置缺陷、HTTP 安全头缺失等问题。
+- 分析信息泄露与加密安全类漏洞，重点关注密钥泄露、硬编码凭据、弱加密、不安全随机数、错误证书校验、调试/管理接口暴露、错误信息泄露、CORS、安全响应头缺失、缓存投毒相关配置风险、CSP 缺失或配置不当、点击劫持防护缺失、Swagger/GraphQL introspection 暴露、目录索引/备份文件暴露等问题。
 - 严格参考规范文档中关于输入范围、任务分工、结果回填、静态输出、摘要块与合并约束的要求执行。
 
 若本模板与 Agent 规范文档冲突，以 `{SKILL_ROOT}/core/static-multi-agent.md` 为准。

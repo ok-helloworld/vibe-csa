@@ -28,15 +28,13 @@ PoC 构造按以下字段取证：
      --show-command --show-summary --include-headers
    ```
    最终写回 finding 时，必须按统一契约回填标准化的 `request` / `response` / `response._evidence_match`
-  - 若失败 → 回读源码，改 payload / 改参数 / 改认证上下文 / 尝试绕过，每次重试用新的 http_test.py 调用（保留每轮 `--show-command --show-summary --include-headers` 输出），重试至少 **3 轮**，每一轮都要：
+  - 若失败 → 回读源码，改 payload / 改参数 / 改认证上下文 / 尝试绕过，每次重试用新的 http_test.py 调用（保留每轮 `--show-command --show-summary --include-headers` 输出），重试至少 **3 轮**（除非明确验证成功），每一轮都要：
     - 读 response
     - 如果失败，看响应读源码分析为什么失败
-    - 改策略（按需切换特殊参数：`--allow-insecure` 绕过 TLS、`--follow-redirects` 跟踪重定向链、`--user-agent` 伪装 UA、`--additional-args "http2=true"` 走私、`--response-encoding gbk` 编码探测）
-    - 再发
-  - 若成功 → 确认 response body 中有实质性证据（不只看 HTTP 200，不能虚假编造 response ）
-    - 利用成功的证据充分：设置 `poc.result="success"`、`status="CONFIRMED"`、`finding_class="runtime_verified"`、`dynamic_verification.state="verified"`
-4. 若尝试了3次仍失败
-  - 用户若强调了使用`deep`模式或者"深入的进行漏洞验证”，可参考 `{SKILL_ROOT}/pentest_skills/INDEX.md`，再做1至2次定向增强验证，但不能虚假编造 request/response，不跳出当前 finding 范围
+      - 改绕过策略（参考下文“尝试绕过生成规则”，并按需切换特殊参数）
+      - 再发送漏洞验证请求
+    - 若成功 → 确认 response body 中有实质性证据（不只看 HTTP 200，不能虚假编造 response ）
+      - 利用成功的证据充分：设置 `poc.result="success"`、`status="CONFIRMED"`、`finding_class="runtime_verified"`、`dynamic_verification.state="verified"`
 
 ## 漏洞类型到 PoC 的映射
 
@@ -52,20 +50,30 @@ PoC 构造按以下字段取证：
 | XML 注入/XXE | 外部实体读取文件或 OOB DTD | 文件内容、解析错误或 OOB 回连 |
 | 反序列化 | 安全探测 gadget 或错误触发 payload | 反序列化错误、回显、OOB 或命令输出 |
 
-## 绕过生成规则
+## 尝试绕过生成规则
 
-动态验证 Agent 只能在已识别到过滤或安全控制后使用绕过 payload。绕过策略来自 `analysis.security_controls` 和 `analysis.bypass_strategy`。
+绕过策略选择顺序：
 
-常见绕过：
+1. 优先参考 `analysis.security_controls` 和 `analysis.bypass_strategy`，结合当前 finding 已知的过滤特征、报错行为、鉴权表现与利用目标选择绕过思路。
+2. 若现有分析未覆盖足够具体的绕过思路，再参考 `{SKILL_ROOT}/pentest_skills/INDEX.md`，按控制类别或利用场景选择对应专题技能补充 payload 设计。
 
-| 控制 | 候选绕过 |
+补充 `pentest_skills` 参考映射：
+
+| 控制/场景 | 优先参考文件 |
 | --- | --- |
-| 后缀黑名单 | 双后缀、大小写、解析差异、可上传文本但由后续流程复制解析 |
-| 路径清理 | URL 编码、双重编码、混合分隔符、符号链接、规范化前后差异 |
-| 命令过滤 | 分隔符变体、换行、环境变量、空格替代、编码 |
-| SSRF 过滤 | 十进制/八进制 IP、IPv6、DNS rebinding、跳转、协议变形 |
-| SQL 关键字过滤 | 大小写、注释、编码、函数等价替换 |
-| 鉴权控制 | 角色切换、对象 ID 替换、隐藏参数、批量接口 |
+| 后缀黑名单、文件上传校验、路径清理、LFI wrapper | `{SKILL_ROOT}/pentest_skills/file-and-path-bypass.md` |
+| 命令过滤、SQL/XSS/GraphQL/SSTI/NoSQL 等输入过滤 | `{SKILL_ROOT}/pentest_skills/injection-filter-bypass.md` |
+| SSRF 过滤、URL 解析差异、元数据目标、DNS Rebinding、XML 解析链 | `{SKILL_ROOT}/pentest_skills/ssrf-and-parser-bypass.md` |
+| URL 校验、跳转链、开放重定向、OAuth/SSRF 跳转相关限制 | `{SKILL_ROOT}/pentest_skills/redirect-and-url-validation-bypass.md` |
+| 鉴权控制、401/403、Token/JWT/OAuth/SAML、类型混淆 | `{SKILL_ROOT}/pentest_skills/auth-and-token-bypass.md` |
+| WAF、请求走私、参数污染、协议与解析差异 | `{SKILL_ROOT}/pentest_skills/waf-and-request-bypass.md` |
+| CSP、前端策略规避、同源相关限制 | `{SKILL_ROOT}/pentest_skills/browser-policy-bypass.md` |
+| CORS 反射、`null` origin、allowlist 与缓存相关绕过 | `{SKILL_ROOT}/pentest_skills/cors-and-origin-bypass.md` |
+| Host 头、虚拟主机、路由限制、绝对 URI 解析差异 | `{SKILL_ROOT}/pentest_skills/host-and-routing-bypass.md` |
+| Web cache deception、cache poisoning、cache key 差异 | `{SKILL_ROOT}/pentest_skills/cache-and-key-bypass.md` |
+| CRLF、Header 注入、response splitting、响应层污染 | `{SKILL_ROOT}/pentest_skills/header-and-response-bypass.md` |
+
+引用这些专题时，应结合当前 finding 的上下文、目标约束与响应特征进行选择，避免脱离场景机械套用绕过 payload。
 
 ## 多步骤 PoC 要求
 

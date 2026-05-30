@@ -23,16 +23,14 @@
 
 ## Stage 1 Agent 拆分
 
-| Agent | 领域 | 关注点 |
+| Agent 标识名 | Agent 专家角色 | 关注点 |
 | --- | --- | --- |
-| `static-injection` | 注入类 | SQL 注入、命令注入、代码注入、SSTI、表达式注入、LDAP/XPath 注入 |
-| `static-auth` | 认证与授权 | 登录绕过、IDOR、权限提升、Session/JWT/OAuth 问题 |
-| `static-file-ssrf` | 请求伪造与文件访问 | SSRF、上传、任意文件读写、路径穿越、文件包含、XXE |
-| `static-deser` | 反序列化 | Java/PHP/Python 反序列化、JNDI、对象注入、危险 gadget 链 |
-| `static-logic` | 业务逻辑 | 支付篡改、状态绕过、竞态条件、CSRF、Webhook 伪造、批量滥用 |
-| `static-info` | 信息泄露与密码学 | 密钥泄露、弱加密、调试接口、错误信息泄露、CORS、安全响应头 |
-
-较小项目也应至少启动 4 个 agent。标准模式和深度模式通常应启动全部 6 个。
+| `static-injection` | 注入利用面审计专家 | SQL 注入、命令注入、代码注入、SSTI、表达式注入、LDAP/XPath 注入、NoSQL 注入、GraphQL 注入、ORM/HQL/JPQL 注入、Header/CRLF 注入 |
+| `static-auth` | 认证授权与接口访问控制审计专家 | 登录绕过、API 接口鉴权缺失、IDOR/BOLA、垂直/水平越权、权限提升、Session/JWT/OAuth/OIDC 问题、会话固定、多租户隔离缺失、API Key/签名认证缺陷 |
+| `static-file-ssrf` | 请求目标与文件访问链路审计专家 | SSRF、上传、任意文件读写、路径穿越、文件包含、XXE、URL 校验缺陷、开放重定向链入 SSRF、Host/绝对 URI 信任、Zip Slip、符号链接/临时文件风险 |
+| `static-deser` | 反序列化与危险对象处理审计专家 | Java/PHP/Python 反序列化、JNDI、对象注入、危险 gadget 链、Fastjson/Jackson、YAML、XMLDecoder、不安全对象绑定、危险反射/类加载 |
+| `static-logic` | 业务逻辑与状态机安全审计专家 | 支付篡改、价格/库存/优惠券篡改、状态绕过、审批流绕过、竞态条件、重放与幂等缺失、CSRF、Webhook 伪造、批量滥用、限流/配额绕过 |
+| `static-info` | 敏感信息暴露与安全配置审计专家 | 密钥泄露、硬编码凭据、弱加密、不安全随机数、错误证书校验、调试/管理接口暴露、错误信息泄露、CORS、Host 信任、安全响应头缺失、缓存投毒相关配置风险 |
 
 
 ## 每个 Agent 必须遵守的共同规则
@@ -76,7 +74,7 @@ workDir/agent-results/agent-static-deser.json
 - 每个 Agent 在成功发现到漏洞后，一定要在生成的json文件中包含修复建议，json字段包括审计语言：`fix.language`、当前代码片段：`fix.before`、代码修复参考：`fix.after`
 - 每个 Agent 须遵循 `core/coverage-gate.md`，计算代码审计覆盖率，然后将结果更新至 `workDir/agent-results/*.json` 的 `coverage_summary`字段
 - 当真实发现拆分为多个项目时，保留中文标题、中文 `vuln_type`、漏洞分类标签，并优先使用 `{SKILL_ROOT}/references/bug-categories.md` 中的 `vuln_type` 值
-- 回填说明性文本字段（如：`description`、`impact`），默认回填为中文，但不得翻译路径、参数名、字段名、URL 中的技术片段
+- 回填说明性文本字段（如：`title`、`description`、`impact`），默认回填为中文，但不得翻译路径、参数名、字段名、URL 中的技术片段
 - 回写完成后，确保最终 JSON 文件在语法上仍然有效
 
 

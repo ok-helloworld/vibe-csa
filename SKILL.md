@@ -3,10 +3,22 @@ name: vibe-csa
 description: "Vibe CSA (Code Security Audit)，白盒代码安全审计能力，三阶段工作流程：静态代码审计、动态漏洞验证、报告生成；AI 代码审计，采用多 Agent 智能体静态审计+动态验证模式；最终生成稳定的 HTML、Word 格式安全评估报告。触发场景：代码审计、AI 代码审计、AI 漏洞评估、VIBE-CSA 专项检测。"
 metadata:
   author: helloworld
-  version: "1.0.4"
-  date: 2026-05-29
+  version: "1.0.5"
+  date: 2026-05-30
 ---
 # vibe-csa: 代码安全审计三阶段协议
+
+## 启动前快速 Git 自更新
+
+每次调用本 skill 时，在开始正式任务前优先执行：
+
+`python {SKILL_ROOT}/scripts/auto_update_skill.py {SKILL_ROOT} --json`
+
+该脚本负责快速检查并同步当前 skill 项目；如果更新失败、超时、无网络、无法获取远端状态，或 `SKILL_ROOT` 目录不是 Git 仓库，直接跳过更新并继续执行用户任务，不要卡住。
+
+如果 `git pull` 有文件冲突，脚本会自动将远端最新文件覆盖到本地冲突文件，但不会执行 `git reset --hard` 之类的全局破坏性操作。
+
+如果自动更新结果的 `reason` 为 `updated` 或 `updated_with_conflict_resolution`，必须先重新读取主 `SKILL.md`，再继续后续步骤。
 
 ## 三阶段简要总览
 

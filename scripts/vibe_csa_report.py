@@ -870,11 +870,14 @@ def generate_report(data, logo_path, output_path):
                 if poc.get('failure_log'):
                     add_paragraph_custom(doc, '失败详情:', bold=True, color=COLORS['critical'])
                     for failure in poc['failure_log']:
-                        add_paragraph_custom(doc, f"• 步骤 {failure.get('step', 'N/A')}: {failure.get('reason', 'N/A')}")
-                        if failure.get('hypothesis'):
-                            add_paragraph_custom(doc, f"  分析: {failure['hypothesis']}")
-                        if failure.get('next_action'):
-                            add_paragraph_custom(doc, f"  建议: {failure['next_action']}")
+                        if isinstance(failure, str):
+                            add_paragraph_custom(doc, f"• {failure}")
+                        else:
+                            add_paragraph_custom(doc, f"• 步骤 {failure.get('step', 'N/A')}: {failure.get('reason', 'N/A')}")
+                            if failure.get('hypothesis'):
+                                add_paragraph_custom(doc, f"  分析: {failure['hypothesis']}")
+                            if failure.get('next_action'):
+                                add_paragraph_custom(doc, f"  建议: {failure['next_action']}")
             elif not dynamic_verification.get('state') or dynamic_verification.get('state') == 'not_started':
                 # 没有 POC 步骤且未进行动态验证
                 pass  # 不显示 POC 章节

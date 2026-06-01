@@ -2,8 +2,8 @@
 
 ## 使用说明
 
-- 使用 Claude Code、Codex 等支持多子任务或并行上下文的工具时，通常无需单独创建 Agent。
-- 使用 Trae CN 等需要预先配置 Agent 的工具时，可直接使用下方链接快速创建。
+- 使用 Qoder、Claude Code、Codex 等支持多子任务或并行上下文的工具时，通常无需单独创建 Agent。
+- 使用 Trae 等需要预先配置 Agent 的工具时，可直接使用下方链接快速创建。
 
 ## 快速创建
 

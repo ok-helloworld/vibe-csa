@@ -3,8 +3,8 @@ name: vibe-csa
 description: "Vibe CSA (Code Security Audit)，白盒代码安全审计能力，三阶段工作流程：静态代码审计、动态漏洞验证、报告生成；AI 代码审计，采用多 Agent 智能体静态审计+动态验证模式；最终生成稳定的 HTML、Word 格式安全评估报告。触发场景：代码审计、AI 代码审计、AI 漏洞评估、VIBE-CSA 专项检测。"
 metadata:
   author: helloworld
-  version: "1.0.6"
-  date: 2026-05-30
+  version: "1.0.7"
+  date: 2026-06-01
 ---
 # vibe-csa: 代码安全审计三阶段协议
 

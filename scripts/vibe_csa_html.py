@@ -37,7 +37,7 @@ def sev_class(sev):
     return {"critical":"sev-critical","high":"sev-high","medium":"sev-medium","low":"sev-low"}.get(sev.lower(),"sev-low")
 
 def sev_label(sev):
-    return {"critical":"严重","high":"高危","medium":"中危","low":"低危"}.get(sev.lower(), sev)
+    return {"critical":"严重","high":"高危","medium":"中危","low":"低危"}.get(sev.lower(), e(sev))
 
 def sev_color(sev):
     return {"critical":"#e53e3e","high":"#dd6b20","medium":"#d69e2e","low":"#38a169"}.get(sev.lower(),"#38a169")
@@ -50,7 +50,7 @@ def status_class(s):
 def status_label(s):
     if not isinstance(s, str):
         return "待验证"
-    return {"CONFIRMED":"已确认","HYPOTHESIS":"待验证","FAILED":"验证未成功"}.get(s.upper(), s)
+    return {"CONFIRMED":"已确认","HYPOTHESIS":"待验证","FAILED":"验证未成功"}.get(s.upper(), e(s))
 
 def dv_state_class(s):
     return {"verified":"dv-verified","failed":"dv-failed","blocked":"dv-blocked",
@@ -58,10 +58,10 @@ def dv_state_class(s):
 
 def dv_state_label(s):
     return {"verified":"已验证","failed":"失败","blocked":"受阻",
-            "skipped":"已跳过","in_progress":"进行中","not_started":"未开始"}.get(s.lower(), s)
+            "skipped":"已跳过","in_progress":"进行中","not_started":"未开始"}.get(s.lower(), e(s))
 
 def ev_level_label(l):
-    return {"L0":"L0 源码推断","L1":"L1 HTTP信号","L2":"L2 业务状态","L3":"L3 强证据"}.get(l.upper(), l)
+    return {"L0":"L0 源码推断","L1":"L1 HTTP信号","L2":"L2 业务状态","L3":"L3 强证据"}.get(l.upper(), e(l))
 
 def strength_class(s):
     return {"L3":"ev-l3","L2":"ev-l2","L1":"ev-l1","L0":"ev-l0"}.get(s.upper(),"ev-l0")
@@ -72,7 +72,7 @@ def poc_result_class(r):
 
 def poc_result_label(r):
     return {"success":"成功","failure":"失败","pending":"待验证",
-            "timeout":"超时","skipped":"已跳过","auth_failed":"认证失败"}.get(r.lower(), r)
+            "timeout":"超时","skipped":"已跳过","auth_failed":"认证失败"}.get(r.lower(), e(r))
 
 def e(text):
     return escape(str(text)) if text is not None else ""
@@ -323,8 +323,8 @@ def build_summary(audit, findings):
       <div class="sumcard">
         <div class="sumcard-title">代码覆盖概览</div>
         <div class="code-coverage-box">
-          <div class="cc-item cc-item-files"><span class="cc-label">已审文件</span><span class="cc-value">{cov.get("reviewed_files","—")}</span></div>
-          <div class="cc-item cc-item-ealoc"><span class="cc-label">有效代码行 (EALOC)</span><span class="cc-value">{cov.get("ealoc","—")}</span></div>
+          <div class="cc-item cc-item-files"><span class="cc-label">已审文件</span><span class="cc-value">{e(cov.get("reviewed_files","—"))}</span></div>
+          <div class="cc-item cc-item-ealoc"><span class="cc-label">有效代码行 (EALOC)</span><span class="cc-value">{e(cov.get("ealoc","—"))}</span></div>
         </div>
       </div>
       <div class="sumcard">
@@ -380,7 +380,7 @@ def build_toc(findings):
           <td><span class="badge {sev_class(sev)}">{sev_label(sev)}</span></td>
           <td><span class="badge {status_class(status)}">{status_label(status)}</span></td>
           <td class="toc-type">{e(f.get("vuln_type",""))}</td>
-          <td class="toc-score">{f.get("dktss_score","—")}</td>
+          <td class="toc-score">{e(f.get("dktss_score","—"))}</td>
         </tr>"""
     filter_html = """
     <div class="filter-container">
@@ -489,7 +489,7 @@ def build_finding(f, idx, audit_stage="static_audit"):
         </div>""" for i in bp.get("ideas",[])])
         bypass_html = f"""<div class="bypass-box">
           <div class="bypass-hdr">绕过可行性：<span class="{'bp-yes' if bp.get('feasible') else 'bp-no'}">{'可行' if bp.get('feasible') else '不可行'}</span>
-          &ensp;难度：<strong>{diff_map.get(bp.get("difficulty",""),"—")}</strong></div>
+          &ensp;难度：<strong>{e(diff_map.get(bp.get("difficulty",""),"—"))}</strong></div>
           {ideas}
         </div>"""
 
@@ -606,12 +606,12 @@ def build_finding(f, idx, audit_stage="static_audit"):
 
     attempts_html = "".join([f"""<div class="att-row">
       <div class="att-header">
-        <span class="att-num">#{att.get('attempt','')}</span>
+        <span class="att-num">#{e(att.get('attempt',''))}</span>
         <span class="att-strategy-label">PoC构造策略:</span>
         <span class="att-strategy">{e(att.get('payload_strategy',''))}</span>
       </div>
       <div class="att-result">
-        <span class="att-res {'att-ok' if att.get('result')=='success' else 'att-fail'}">{att.get('result','')}</span>
+        <span class="att-res {'att-ok' if att.get('result')=='success' else 'att-fail'}">{e(att.get('result',''))}</span>
       </div>
       {f'<div class="att-evidence"><code class="att-snip">{e(att.get("evidence_snippet",""))}</code></div>' if att.get("evidence_snippet") else ""}
     </div>""" for att in dyn.get("attempts",[]) if att.get("payload_strategy")])
@@ -660,7 +660,7 @@ def build_finding(f, idx, audit_stage="static_audit"):
       <span class="meta-chip"><span class="mc-k">CWE</span>{e(f.get("cwe","—"))}</span>
       <span class="meta-chip"><span class="mc-k">分类</span>{e(f.get("category",""))}</span>
       <span class="meta-chip"><span class="mc-k">Agent</span>{e(static_ev.get("agent","—"))}</span>
-      <span class="meta-chip"><span class="mc-k">置信度</span><span class="conf-{f.get('confidence','low')}">{f.get('confidence','—')}</span></span>
+      <span class="meta-chip"><span class="mc-k">置信度</span><span class="conf-{e(f.get('confidence','low'))}">{e(f.get('confidence','—'))}</span></span>
     </div>
 
     <div class="tabs-wrap" data-fid="{e(vid)}">
@@ -686,7 +686,7 @@ def build_finding(f, idx, audit_stage="static_audit"):
             <h4 class="ph">漏洞位置</h4>
             <div class="loc-card">
               <div class="loc-row"><span class="lk">文件</span><code>{e(loc.get("file",""))}</code></div>
-              <div class="loc-row"><span class="lk">行号</span><code>{loc.get("line_start","—")} – {loc.get("line_end","—")}</code></div>
+              <div class="loc-row"><span class="lk">行号</span><code>{e(loc.get("line_start","—"))} – {e(loc.get("line_end","—"))}</code></div>
               <div class="loc-row"><span class="lk">函数</span><code>{e(loc.get("function","—"))}</code></div>
               <div class="loc-row"><span class="lk">路由</span><code>{e(loc.get("route","—"))}</code></div>
               <div class="loc-row"><span class="lk">方法</span><code>{e(loc.get("http_method","—"))}</code></div>

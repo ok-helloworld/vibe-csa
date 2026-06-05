@@ -1,6 +1,6 @@
 # Vibe CSA
 
-> 当前版本：v1.0.9
+> 当前版本：v1.0.10
 
 Vibe CSA (Code Security Audit)，是一款基于 AI Agent 架构的代码审计工具，采用多 Agent 并行执行架构，用“上帝视角”静态审计源代码，用“实战模拟”动态验证漏洞，保证了 Web 漏洞挖掘的全面性和准确性，输出稳定可靠的安全报告，并提供可落地整改建议。主要能力：AI 代码审计和 AI 漏洞评估。
 
@@ -77,8 +77,8 @@ playwright install chromium
 ### 多 Agent 智能体
 
 创建多 Agent 智能体，可有效提高代码审计、漏洞验证的速度和质量：
-- 使用 `Trae` 等智能体工具时，需要参考 `sub_agent.md` 手工创建多个 Agent
-- 使用 `Qoder`、`Claude Code`、`Codex` 等智能体工具时，调用本技能会自动创建多个 Agent，无需手动创建 Agent，此步骤可忽略
+- 调用本技能运行时，会自动创建多 Agent 智能体（安装时可略过）
+- 如果后续想手工创建，可参考 `references/sub_agents`，共 7 个子 Agent 定义
 
 ## 工作目录与报告输出
 

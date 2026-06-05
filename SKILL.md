@@ -3,7 +3,7 @@ name: vibe-csa
 description: "Vibe CSA (Code Security Audit)，白盒代码安全审计能力，三阶段工作流程：静态代码审计、动态漏洞验证、报告生成；AI 代码审计，采用多 Agent 智能体静态审计+动态验证模式；最终生成稳定的 HTML、Word 格式安全评估报告。触发场景：代码审计、AI 代码审计、AI 漏洞评估、VIBE-CSA 专项检测。"
 metadata:
   author: helloworld
-  version: "1.0.9"
+  version: "1.0.10"
   date: 2026-06-05
 ---
 # vibe-csa: 代码安全审计三阶段协议
@@ -22,7 +22,18 @@ metadata:
 
 ## 启动前运行子 Agent 创建脚本
 
-开始审计前，在**当前项目目录**下，直接调用脚本创建Agent `python {SKILL_ROOT}/scripts/install_sub_agents.py --provider {provider}` 提前创建 7 个子 Agent，如 `python {SKILL_ROOT}/scripts/install_sub_agents.py --provider qoder` 、`python {SKILL_ROOT}/scripts/install_sub_agents.py --provider trae` 等。
+开始审计前，在**当前项目目录**下，直接调用脚本创建Agent `python {SKILL_ROOT}/scripts/install_sub_agents.py --provider {provider} --force` 提前创建 7 个子 Agent，如 `python {SKILL_ROOT}/scripts/install_sub_agents.py --provider qoder --force` 、`python {SKILL_ROOT}/scripts/install_sub_agents.py --provider trae --force` 等。
+
+## 启动前创建 workDir 目录
+
+开始新任务前，必须先检查**当前项目目录**下是否已存在 `workDir/` 目录。
+
+如果已存在 `workDir/`，先将其重命名为 `workDir_{YYYYMMDD_HHmmss}`，其中 `YYYYMMDD_HHmmss` 为当前时间戳，例如 `workDir_20260605_143025`，用于保留旧任务数据。命令示例：
+- **Windows (PowerShell)**: `Rename-Item -Path "workDir" -NewName "workDir_20260605_143025"`
+- **Linux/macOS (Bash)**: `mv workDir workDir_20260605_143025`
+请根据当前操作系统选择正确的命令，若无法重命名，不得删除旧目录。
+
+旧目录重命名完成后，再创建新的空 `workDir/` 目录，确保本次新任务的中间文件、扫描结果和最终报告都写入新创建的 `workDir/` 目录。
 
 ## 三阶段简要总览
 

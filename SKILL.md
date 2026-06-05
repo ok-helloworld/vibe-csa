@@ -3,8 +3,8 @@ name: vibe-csa
 description: "Vibe CSA (Code Security Audit)，白盒代码安全审计能力，三阶段工作流程：静态代码审计、动态漏洞验证、报告生成；AI 代码审计，采用多 Agent 智能体静态审计+动态验证模式；最终生成稳定的 HTML、Word 格式安全评估报告。触发场景：代码审计、AI 代码审计、AI 漏洞评估、VIBE-CSA 专项检测。"
 metadata:
   author: helloworld
-  version: "1.0.8"
-  date: 2026-06-03
+  version: "1.0.9"
+  date: 2026-06-05
 ---
 # vibe-csa: 代码安全审计三阶段协议
 
@@ -19,6 +19,10 @@ metadata:
 如果 `git pull` 有文件冲突，脚本会自动将远端最新文件覆盖到本地冲突文件，但不会执行 `git reset --hard` 之类的全局破坏性操作。
 
 如果自动更新结果的 `reason` 为 `updated` 或 `updated_with_conflict_resolution`，必须先重新读取主 `SKILL.md`，再继续后续步骤。
+
+## 启动前运行子 Agent 创建脚本
+
+开始审计前，在**当前项目目录**下，直接调用脚本创建Agent `python {SKILL_ROOT}/scripts/install_sub_agents.py --provider {provider}` 提前创建 7 个子 Agent，如 `python {SKILL_ROOT}/scripts/install_sub_agents.py --provider qoder` 、`python {SKILL_ROOT}/scripts/install_sub_agents.py --provider trae` 等。
 
 ## 三阶段简要总览
 
@@ -76,21 +80,35 @@ Stage 3 报告生成
 | --- | --- |
 | `{SKILL_ROOT}/core/pipeline.md` | 三阶段流水线、输入输出、门禁 |
 
-进入对应阶段后，再按需读取：
-- Stage 1 创建多 Agent 并行审计，读取 `{SKILL_ROOT}/core/static-multi-agent.md`
-- Stage 2 创建多 Agent 并行动态验证，读取 `{SKILL_ROOT}/core/dynamic-multi-agent.md`
+## 子 Agent 角色简介
+
+### 静态代码审计子 Agent
+| Agent 标识名 | Agent 专家角色 | 关注点 | 创建 Agent 定义文件 |
+| --- | --- | --- | --- |
+| `static-injection` | 注入利用面审计专家 | SQL 注入、命令注入、代码注入、SSTI、表达式注入、LDAP/XPath 注入、NoSQL 注入、GraphQL 注入、ORM/HQL/JPQL 注入、Header/CRLF 注入、反射型 XSS、存储型 XSS、DOM XSS、HTTP 参数污染、SSI 注入 | `{SKILL_ROOT}/references/sub_agents/static-injection.md` |
+| `static-auth` | 认证授权与接口访问控制审计专家 | 登录绕过、API 接口鉴权缺失、对象级/功能级授权缺陷、垂直/水平越权与提权、字段级授权缺陷、API 响应敏感字段越权暴露、Session/JWT/OAuth/OIDC 问题、会话固定、多租户隔离缺失、API Key/签名认证缺陷、密码重置/找回流程缺陷、短信/邮箱验证码校验缺陷、OAuth 回调校验缺陷、暴力破解、弱密码、Cookie 验证错误 | `{SKILL_ROOT}/references/sub_agents/static-auth.md` |
+| `static-file-ssrf` | 请求目标与文件访问链路审计专家 | SSRF、上传、任意文件读写、任意文件创建/删除、路径穿越、文件包含、XXE、URL 校验缺陷、URL 重定向、开放重定向链入 SSRF、重定向跟随导致的 SSRF、HTTP请求走私、Host/绝对 URI 信任、Zip Slip、符号链接/临时文件风险、下载功能任意文件读取、对象存储签名 URL 滥用 | `{SKILL_ROOT}/references/sub_agents/static-file-ssrf.md` |
+| `static-deser` | 反序列化与危险对象处理审计专家 | Java/PHP/Python 反序列化、JNDI、对象注入、危险 gadget 链、Fastjson/Jackson、YAML、XMLDecoder、不安全对象绑定、多态类型绑定滥用、危险 Bean/对象自动绑定、危险反射/类加载 | `{SKILL_ROOT}/references/sub_agents/static-deser.md` |
+| `static-logic` | 业务逻辑与状态机安全审计专家 | 支付篡改、价格/库存/优惠券篡改、订单金额计算缺陷、状态绕过、审批流绕过、竞态条件、重放与幂等缺失、CSRF、Webhook 伪造、批量滥用、批量导入导出越权、限流/配额绕过、注册/邀请/优惠券薅羊毛、账户合并/租户切换逻辑错误。主审计路径为入口盘点、权限与对象归属检查、敏感字段可写性检查、状态机与跨动作链路检查，`sinks` 仅作辅助线索 | `{SKILL_ROOT}/references/sub_agents/static-logic.md` |
+| `static-info` | 敏感信息暴露与安全配置审计专家 | 密钥泄露、硬编码凭据、弱加密、不安全随机数、错误证书校验、调试/管理接口暴露、错误信息泄露、CORS、安全响应头缺失、缓存投毒相关配置风险、CSP 缺失或配置不当、点击劫持防护缺失、Swagger/GraphQL introspection 暴露、目录索引/备份文件暴露 | `{SKILL_ROOT}/references/sub_agents/static-info.md` |
+
+### 动态漏洞验证子 Agent
+| Agent 标识名 | Agent 专家角色 | 关注点 | 创建 Agent 定义文件 |
+| --- | --- | --- | --- |
+| `dynamic-verifier` | 运行时漏洞验证与 PoC 构造专家 | 基于 Stage 1 finding 执行真实请求验证、认证态复用、路由/参数/权限复核、PoC 构造、运行时证据提取、漏洞确认与排除、失败原因记录、`dynamic-state.json` 状态流转、`workDir/findings/FINDING-*.json` 回填、安全边界控制；只验证已有 finding，不扩展为新的静态审计任务 | `{SKILL_ROOT}/references/sub_agents/dynamic-verifier.md` |
 
 ## 全局硬规则
 
 1. 静态审计过程中，子agent发现漏洞后，生成的json文件一定要包含代码级别的修复建议，包括审计语言：`fix.language`、当前代码片段：`fix.before`、代码修复参考：`fix.after`。
 2. 动态漏洞验证过程中，如果遇到登录验证码、MFA、SSO 时，只能使用 `scripts/extract_credentials.py` 让用户在浏览器中手动登录，禁止脚本猜测或破解验证码。
 
+
 ## 阶段入口
 
 ### Stage 1 静态代码审计
 
-#### Stage 1.1 multi Agent
-- **必须完整读取** `{SKILL_ROOT}/core/static-multi-agent.md` 创建多 Agent 独立分工、并发执行
+#### Stage 1.1 multi Agent 运行静态审计
+- 必须同时启动 6 个静态审计 Agent：`static-injection`、`static-auth`、`static-file-ssrf`、`static-deser`、`static-logic`、`static-info`，每个子 Agent 独立分工，**6 个 Agent 并发执行审计任务**
 - 每个 Agent 开始审计前，须使用 `scripts/prepare_static_aegnt_result.py` 生成静态审计骨架文件，脚本运行示例：`python {SKILL_ROOT}/scripts/prepare_static_aegnt_result.py {agentname}`，骨架文件会保存至 `workDir/agent-results/*.json`，比如 `static-deser` agent，生成的最终文件为 `workDir/agent-results/agent-static-deser.json`
 - 铁律：每个 Agent 需要将各自的骨架文件的所有字段全部回填（需要基于审计结果回填，不得回填虚假数据）。
 - `findings`字段可结合实际漏洞审计结果扩展多条，漏洞标题、中文漏洞类型、bug 分类标签、`vuln_type` 优先从 `references/bug-categories.md` 选择
@@ -151,8 +169,8 @@ python {SKILL_ROOT}/scripts/prepare_dynamic_pocs.py \
 - 若用户提供账号密码，在执行动态漏洞验证前，需要先获取到目标网站登录凭据，方便后续漏洞验证过程，可以复用凭据
 - 若用户提供账号密码，或存在 `analysis.attack_surface.auth_required=true`，或存在 `required_role`，必须先调用 `scripts/prepare_auth_session.py` / `scripts/extract_credentials.py`，让用户在浏览器中手动登录并生成 `workDir/sessions/creds.json`
 
-#### Stage 2.3 创建并行 dynamic-verifier 子 Agent
-- 在 `workDir/dynamic-state.json`、对应的 `workDir/findings/FINDING-*.json` 以及所需认证上下文准备完成后，再**必须完整读取** `{SKILL_ROOT}/core/dynamic-multi-agent.md`，按照当前 Stage 2 队列中可领取的 `findings[].queue_state="pending"` finding 数量，按需创建 `1~5` 个 `dynamic-verifier` 子 Agent 并发执行漏洞验证，提高漏洞验证效率；子 Agent 不按漏洞等级分组创建，而是统一从 `dynamic-state.json` 中领取任务
+#### Stage 2.3 启动 dynamic-verifier 动态漏洞验证 Agent
+- 在 `workDir/dynamic-state.json`、对应的 `workDir/findings/FINDING-*.json` 以及所需认证上下文准备完成后，再按照当前 Stage 2 队列中可领取的 `findings[].queue_state="pending"` finding 数量，按需同时启动 `1~5` 个 `dynamic-verifier` 动态漏洞验证 Agent，**多个 Agent 并发执行漏洞验证**，提高漏洞验证效率；子 Agent 不按漏洞等级分组创建，而是统一从 `dynamic-state.json` 中领取任务
 - 若 Stage 2.1 已为队列项写入 `assigned_slot`，则创建子 Agent 时必须明确告知其只负责对应槽位的任务；子 Agent 仅领取 `assigned_slot` 与自身一致、且 `findings[].queue_state="pending"` 的 finding，避免并行领取同一任务
 - `dynamic-verifier` 子 Agent 应尽量通过 `dynamic-state.json` 和对应的 finding 文件传递状态与结果，避免将详细验证过程、长响应内容和中间推理回灌主流程上下文
 
@@ -207,8 +225,6 @@ python {SKILL_ROOT}/scripts/vibe_csa_report.py -i workDir/dynamic-verified.json 
 workDir/
   audit-state.json
   dynamic-state.json
-  file_manifest.json
-  sink_hits/
   agent-results/
   static-merged.json
   findings/

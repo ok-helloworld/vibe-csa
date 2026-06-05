@@ -16,20 +16,11 @@ Stage 1 静态代码审计 -> Stage 3 报告生成
 Stage 1 静态代码审计 -> Stage 2 漏洞动态验证 -> Stage 3 报告生成
 ```
 
-## 运行模式
-
-| 模式 | 用途 | 静态审计范围 | 动态验证要求 |
-| --- | --- | --- | --- |
-| `quick` | 快速检查、变更验证 | T1 + 高危 sink | 只验证 critical/high |
-| `standard` | 默认日常审计 | T1+T2 + 完整 sink 预扫描 | 验证所有可验证 critical/high，抽样 medium |
-| `deep` | 上线前或高敏项目 | T1+T2+T3 + 完整 Agent | 验证所有可验证 critical/high，抽样 medium，失败时必须尝试绕过 |
-
 ## Stage 1: 静态代码审计
 
 ### 输入
 
 - 源码路径
-- 扫描模式
 - 可选目标 URL
 - 可选凭据说明
 
@@ -37,28 +28,16 @@ Stage 1 静态代码审计 -> Stage 2 漏洞动态验证 -> Stage 3 报告生成
 
 1. 建立 `workDir/` 工作目录。
 2. 识别语言、框架、依赖、入口文件。
-3. 按插件规则生成 `file_manifest.json`：
-   - T1: Controller、Route、Handler、API 入口
-   - T2: Service、Middleware、Helper、Model
-   - T3: Entity、DTO、Config、低风险辅助代码
-   - SKIP: 第三方库、构建产物、测试样例
-4. 使用 ripgrep/semgrep 生成 sink 预扫描结果到 `workDir/sink_hits/`。
-5. 并行启动多个 Agent。每个 Agent 必须写入 `workDir/agent-results/{agent}.json`。
-6. 调用合并脚本：
+3. 基于 `core\static-multi-agent.md` 创建、并行启动多个 Agent，若子 Agent 已提前创建，只需并行启动 6 个子Agent
+4. 每个 Agent 使用 `prepare_static_aegnt_result.py` 脚本生成骨架文件
+5. 每个 Agent 基于审计结果按规范回填骨架文件 `workDir/agent-results/agent-{agentname}.json`
+6. 调用脚本 `merge_static_results.py` 合并 `workDir/agent-results`
+7. 使用 `dedupe_static_merged.py` 去重 `workDir/static-merged.json`
 
-```bash
-python {SKILL_ROOT}/scripts/merge_static_results.py \
-  --input-dir workDir/agent-results \
-  --output workDir/static-merged.json \
-  --source-path {source_path} \
-  --target-url {target_url}
-```
 
 ### Stage 1 输出
 
 ```text
-workDir/file_manifest.json
-workDir/sink_hits/*.txt
 workDir/agent-results/*.json
 workDir/static-merged.json
 ```

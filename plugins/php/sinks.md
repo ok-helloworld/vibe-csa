@@ -82,6 +82,16 @@
 | Symfony `$file->move($dir, $name)` | High | `->move\s*\(` | php-file.yaml |
 | 上传文件名直接使用 `$_FILES['file']['name']` | High | `$_FILES.*\['name'\]` | php-file.yaml |
 
+### 文件包含 / 动态加载补强
+| Sink / 候选点 | 风险 | Grep 模式 | 备注 |
+|------|------|-----------|------|
+| 配置值 / 数据库字段进入 `include` / `require` / `include_once` / `require_once` | High | `(include\|require)(_once)?\s*\(?.*(\$settings|\$config|\$row|\$result|\$record)` | 配置驱动文件包含，需继续追踪配置来源 |
+| 路径拼接后再 `include` / `require`，其中含配置值、数据库值、对象属性 | High | `(include\|require)(_once)?\s*\(?.*(BASE_PATH|ROOT_PATH|\.).*(\$settings|\$config|->)` | 重点关注语言包、模板、插件、页面类型路径 |
+| 构造器 / 包装类内部 `require` / `include` | High | `(__construct\s*\(|class\s+.*(Localization|Template|Loader|Renderer)|require\s*\(|include\s*\()` | 需判断调用方是否把可控路径传入包装类 |
+| 动态模板 / 语言包 / 插件 / 页面类型加载 | High | `template|lang|language|plugin|module|page_type|theme` | 需结合 `include/require/render/display/fetch` 语境判断 |
+| `include` / `require` 前仅做 `file_exists` / `is_file` / `basename` / 后缀判断 | Medium | `file_exists|is_file|basename|pathinfo` | 这类通常不是充分防护，不能直接视为安全 |
+| 上传文件写入后位于可被 `include` / 模板 / 语言包 / 插件机制消费的目录 | Critical | `move_uploaded_file|file_put_contents|copy\s*\(|rename\s*\(` | 需继续判断是否可与文件包含或模板加载组链到 RCE |
+
 ### 文件删除
 | Sink | 风险 | Grep 模式 | Semgrep |
 |------|------|-----------|---------|
@@ -202,6 +212,16 @@
 | `glob($PATTERN)` 用户可控 pattern | Low | `glob\(\s*\$` | 路径枚举 |
 | `move_uploaded_file($_FILES['x']['tmp_name'], $DEST)` 路径用户可控 | High | `move_uploaded_file\(.*\$` | 上传到任意路径 |
 | `file_put_contents($USER_PATH, ...)` | High | `file_put_contents\(\s*\$` | 任意文件写 |
+
+### 配置驱动文件包含与二次消费候选点
+
+| 候选点 | 风险 | Grep 模式 | 备注 |
+|------|------|-----------|------|
+| 批量写入 settings / config 且键名可控 | High | `foreach\s*\(\s*\$_(POST|REQUEST)|each\s*\(\s*\$_(POST|REQUEST)` | 重点检查是否可改写语言包、模板、路径、回调、功能开关 |
+| 高风险配置键可写（如语言包、模板名、插件路径、页面类型、回调函数） | High | `language|lang_file|template|theme|plugin|module|callback|function` | 命中后必须追踪消费点 |
+| 配置值进入模板名、语言包名、插件名、页面类型名 | High | `\$settings|\$config` | 重点追踪是否进入 `include/require/render/display/fetch` |
+| 上传目录、模板目录、语言包目录、缓存目录可写 | High | `upload|template|lang|cache|theme|plugin` | 命中后判断是否存在二次消费链 |
+| 配置写入 + 动态加载 + 文件上传 / 文件写入 同时出现 | Critical | 组合链路候选 | 应优先判断是否可形成 LFI / RCE 链 |
 
 ### 现代 Web 攻击面
 

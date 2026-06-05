@@ -78,6 +78,8 @@ processors/  processor/  consumers/  consumer/  producers/  producer/
 
 内容关键字：含数据库操作（`db.`、`Query`、`Exec`、`Find`、`Save`、`Update`、`Delete`）或外部服务调用（`http.Get`、`fetch(`、`axios.`、`requests.`、`http.Client`）但不是 HTTP handler。
 
+补充高优先级目录 / 文件名：`template/`、`templates/`、`view/`、`views/`、`resource/`、`resources/`、`loader/`、`plugin/`、`theme/`、`cache/`；以及 `*Template*`、`*View*`、`*Resource*`、`*Loader*`、`*Renderer*`、`*Plugin*`、`*Theme*`。这类文件即使不是入口，也常是配置驱动加载和二次消费链的关键传播层。
+
 ## 4. T3（数据结构 / DTO / Entity）识别
 
 层 A 路径：
@@ -106,6 +108,8 @@ types/  type/  structs/  data/  pojo/  vo/  bean/  beans/
 ```
 
 文件级 SKIP：`*_test.*`、`*.test.*`、`*.spec.*`、`*.mock.*`、`*.d.ts`、`*.min.js`、`*.bundle.js`
+
+**例外**：`templates/`、`views/`、`resources/`、`plugin/`、`theme/`、`cache/`、`storage/`、`config/` 下会被模板、资源、模块、插件或脚本加载机制运行时消费的源码、模板、配置文件，不得仅因目录名直接 SKIP。
 
 ## 6. 项目包/模块识别
 

@@ -92,6 +92,16 @@
 | `request.files['file'].save()` (Flask) | High | `request\.files` | python-file.yaml |
 | 上传文件名直接使用用户输入 | High | `filename` + `save\|write` | python-file.yaml |
 
+### 模板 / 动态导入 / 资源加载补强
+| Sink / 候选点 | 风险 | Grep 模式 | 备注 |
+|------|------|-----------|------|
+| 配置值 / 数据库字段进入模板名、模块名、资源路径 | High | `settings\.|config\.|os\.environ|getenv\(|\.get\(` | 配置驱动加载，需继续追踪来源与消费点 |
+| `jinja_env.get_template(name)` / `Environment(loader=...).get_template(name)` 动态模板名 | High | `get_template\(` | 重点关注模板名是否来自请求值、配置值或数据库值 |
+| `importlib.import_module(name)` / `__import__(name)` / `runpy.run_path(path)` 动态导入 | High | `importlib\.import_module|__import__\(|runpy\.run_path` | 需判断模块名或路径是否可控 |
+| `pkgutil.get_data()` / `importlib.resources` / `open_resource` 动态资源路径 | Medium | `pkgutil\.get_data|importlib\.resources|open_resource` | 重点关注模板、插件、配置、脚本资源加载 |
+| 加载前仅做 `exists()` / 后缀判断 / 路径前缀判断 | Medium | `exists\(\)|endswith\(|startswith\(` | 这类通常不是充分防护，不能直接视为安全 |
+| 上传文件写入后位于可被模板、动态导入、插件机制消费的目录 | Critical | `request\.FILES|request\.files|write_text|open\(.*'w'|shutil\.move` | 需继续判断是否可与模板加载或动态导入组链 |
+
 ## XXE
 
 | Sink | 风险 | Grep 模式 | Semgrep |
@@ -187,6 +197,16 @@
 | `tempfile.mktemp()` | Medium | `tempfile\.mktemp\(` | 弃用 API，TOCTOU 竞态 |
 | `os.symlink($USER_PATH, ...)` | Medium | `os\.symlink` | 符号链接攻击 |
 | `pathlib.Path($USER).expanduser()` | Low | `expanduser\(` | `~user/...` 可枚举家目录 |
+
+### 配置驱动加载与二次消费候选点
+
+| 候选点 | 风险 | Grep 模式 | 备注 |
+|------|------|-----------|------|
+| 批量写入 settings / config / profile 且键名可控 | High | `update\(|setattr\(|__dict__\.update|model_copy\(update=` | 重点检查是否可改写模板名、模块名、路径、功能开关 |
+| 高风险配置键可写（如模板名、模块名、插件名、资源路径、回调函数） | High | `template|module|plugin|resource|path|callback|function` | 命中后必须追踪消费点 |
+| 配置值进入模板名、模块名、插件名、资源路径 | High | `settings\.|config\.|os\.environ|getenv\(` | 重点追踪是否进入 `get_template`、动态导入、资源读取 |
+| 上传目录、模板目录、插件目录、实例目录、缓存目录可写 | High | `upload|template|plugin|instance|cache|storage` | 命中后判断是否存在二次消费链 |
+| 配置写入 + 动态加载 / 模板加载 + 文件上传 / 文件写入 同时出现 | Critical | 组合链路候选 | 应优先判断是否可形成模板执行、模块执行或资源覆盖链 |
 
 ### 现代 Web 攻击面（未来补强）
 

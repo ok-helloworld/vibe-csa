@@ -85,6 +85,21 @@ rg -n -t go -t js -t ts -t rb -t rs -t cs --no-heading "<pattern>" <project_root
 
 **强制**：文件上传发现进入 Stage 2 动态验证时必须按 `core/upload-verification.md` 3 步验证：上传 + GET 访问 + 命令回显（含 `x_unique_marker`）。
 
+## 4.1 资源加载 / 动态消费补强（P1）
+
+| 语言 | 正则模式 | 备注 |
+|------|---------|------|
+| 通用 | `load(template|view|module|plugin|resource|script)\s*\(` | 项目内包装加载器，需 Read 确认参数来源 |
+| 通用 | `render\s*\([^)]*(template|view|page|theme)` | 动态模板 / 页面加载 |
+| 通用 | `require\s*\([^)]*(module|plugin|path|name)` | 动态模块加载 |
+| Go | `template\.ParseFiles\(|template\.ExecuteTemplate\(` | 模板名 / 文件路径可控时危险 |
+| Node | `require\(\s*[^'"]|import\(\s*[^'"]` | 动态模块导入 |
+| Ruby | `render\s+(file:|inline:|template:)` | 动态模板 / 文件渲染 |
+| C# | `Assembly\.Load\(|AssemblyLoadContext\.LoadFromAssemblyPath` | 动态程序集 / 插件加载 |
+| Rust | `tera\.render\(|handlebars\.render\(` | 模板名可控时需继续追踪 |
+
+**规则**：配置值、数据库值、对象属性、环境变量进入模板名、模块名、插件名、资源路径时，不能停在 grep 命中，必须继续追踪消费点。
+
 ## 5. SSRF（P1）
 
 | 语言 | 正则模式 |
@@ -160,6 +175,17 @@ rg -n -t go -t js -t ts -t rb -t rs -t cs --no-heading "<pattern>" <project_root
 | `Random\(\)\|Math\.random\(\)` | 非密码学安全随机数（用于 token/盐才危险） |
 
 **规则 10 提醒**：除非有完整数据流（弱哈希 → 密码存储 → 用户名/密码下载入口），否则属"配置类"问题，按反幻觉规则 10 不能单独标 CONFIRMED。
+
+## 10.1 配置驱动加载与二次消费候选点（P1）
+
+| 模式 | 含义 |
+|------|------|
+| `(template|view|module|plugin|resource|script|theme|loader)\s*[:=]\s*.+` | 高风险配置键可写，命中后需追踪消费点 |
+| `(getenv\(|os\.environ|System\.getProperty|config\.|settings\.)` | 配置值 / 环境变量作为间接污染源 |
+| `(upload|template|view|resource|plugin|theme|cache|storage)` | 重点关注是否既可写又会被运行时消费 |
+| `load.*\(|render.*\(|require.*\(|Assembly\.Load|import\(` | 若与配置写入或文件写入同时出现，应优先判断是否可形成二次消费链 |
+
+**规则**：出现“配置写入 + 动态加载 / 模板加载 + 文件上传 / 文件写入”组合时，应优先判断是否可形成资源覆盖、模板执行、模块执行或插件执行链。
 
 ---
 

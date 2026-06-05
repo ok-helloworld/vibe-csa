@@ -112,6 +112,7 @@ description: Java/Kotlin 代码审计插件。支持 Spring, Struts2, Jersey, Du
 
 ### Sink 驱动
 从 `sinks.md` 中的危险函数出发，向上追溯参数来源，追踪是否用户可控。
+对“配置驱动资源加载 / 动态视图 / 动态 Bean / 上传后二次消费”候选点，不得停在 grep 命中；必须继续追踪配置值、数据库值、请求值是否进入模板名、视图名、资源路径、Bean 名等消费点，并优先判断是否可与文件上传或文件写入组链。
 
 ### 控制驱动
 从 T1 Controller/Route 出发，向下追踪安全控制：
@@ -174,6 +175,8 @@ description: Java/Kotlin 代码审计插件。支持 Spring, Struts2, Jersey, Du
 - [ ] `new File()` / `Paths.get()` 路径遍历
 - [ ] 文件上传无类型/大小校验
 - [ ] `transferTo()` 路径覆盖
+- [ ] 配置值进入模板名、视图名、资源名、Bean 名或 `ResourceLoader` / `getBean()` 消费点
+- [ ] 上传或文件写入结果可被模板、资源、插件、视图机制二次消费
 
 ### 加密安全
 - [ ] MD5/SHA-1 用于密码/签名

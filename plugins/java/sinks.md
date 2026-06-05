@@ -89,6 +89,16 @@
 | `FileItem.write()` (Commons FileUpload) | High | `FileItem.*write` | java-file.yaml |
 | 上传文件名直接使用用户输入 | High | `getOriginalFilename` | java-file.yaml |
 
+### 资源加载 / 动态消费补强
+| Sink / 候选点 | 风险 | Grep 模式 | 备注 |
+|------|------|-----------|------|
+| 配置值进入模板名 / 视图名 / 资源名 / Bean 名 | High | `\$\\{|\@Value|Environment\.getProperty|getProperty\(` | 配置驱动资源加载，需继续追踪来源与消费点 |
+| `ModelAndView(viewName)` / `return viewName` 动态视图 | High | `ModelAndView\(|return\s+"|return\s+\w+View` | 重点关注模板名是否来自请求值、配置值或数据库值 |
+| `ResourceLoader.getResource(...)` / `ClassLoader.getResource(...)` 动态资源路径 | High | `ResourceLoader\.getResource|ClassLoader\.getResource` | 重点关注模板、静态资源、脚本、配置文件加载 |
+| `ApplicationContext.getBean(name)` / `BeanFactory.getBean(name)` 动态 Bean 分发 | Medium | `getBean\(` | Bean 名来自外部输入或配置时需继续追踪 |
+| 资源加载前仅做 `exists()` / 后缀判断 / 路径前缀判断 | Medium | `exists\(\)|endsWith\(|startsWith\(` | 这类通常不是充分防护，不能直接视为安全 |
+| 上传文件写入后位于可被模板 / 资源 / 插件机制消费的位置 | Critical | `transferTo|FileItem.*write|Files\.write|FileOutputStream` | 需继续判断是否可与动态视图、资源加载、插件机制组链 |
+
 ### 路径遍历
 | Sink | 风险 | Grep 模式 | Semgrep |
 |------|------|-----------|---------|
@@ -174,6 +184,15 @@
 | `GroovyShell().evaluate($SCRIPT)` | High | `GroovyShell.*evaluate` | 已新增 `java-groovy-shell-eval` |
 | `PebbleEngine.render($TPL)` | Medium | `PebbleEngine` | Pebble 模板 SSTI |
 | Spring `@RequestMapping("/${prop}")` 动态路由 | Low | `RequestMapping.*\$\{` | 配置注入到路由 |
+
+### 配置驱动资源加载与二次消费候选点
+
+| 候选点 | 风险 | Grep 模式 | 备注 |
+|------|------|-----------|------|
+| 配置值进入模板名、视图名、资源名、Bean 名、脚本名 | High | `Environment\.getProperty|getProperty\(|@Value|ConfigurationProperties` | 命中后必须追踪消费点 |
+| 数据库值 / 请求值进入 `ModelAndView`、视图解析器、模板解析器 | High | `ModelAndView\(|ViewResolver|TemplateEngine|FreeMarker|Thymeleaf` | 重点判断是否形成动态模板或资源加载 |
+| 上传目录、模板目录、静态资源目录、插件目录可写 | High | `upload|template|view|resource|plugin|theme` | 命中后判断是否存在二次消费链 |
+| 配置写入 + 动态视图 / 资源加载 + 文件上传 / 文件写入 同时出现 | Critical | 组合链路候选 | 应优先判断是否可形成资源覆盖、模板执行或插件执行链 |
 
 ### SQL 注入补全
 

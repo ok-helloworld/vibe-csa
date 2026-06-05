@@ -6,3 +6,4 @@ matplotlib>=3.8
 httpx
 charset-normalizer
 chardet
+playwright

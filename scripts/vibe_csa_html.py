@@ -116,6 +116,40 @@ def resp_status_class(status):
         return "sxxx"
 
 
+def safe_score(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return -1.0
+
+
+def sort_findings_by_dktss(findings):
+    # Higher-risk findings should appear first in the report.
+    return sorted(
+        findings,
+        key=lambda f: (
+            -safe_score(f.get("dktss_score")),
+            str(f.get("vuln_id", "")),
+        ),
+    )
+
+
+def get_tool_version_display():
+    """从 SKILL.md 读取工具版本，失败时回退为 vibe-csa。"""
+    skill_path = Path(__file__).resolve().parent.parent / "SKILL.md"
+    try:
+        with open(skill_path, "r", encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped.startswith("version:"):
+                    version = stripped.split(":", 1)[1].strip().strip('"').strip("'")
+                    if version:
+                        return f"vibe-csa {version}"
+    except OSError:
+        pass
+    return "vibe-csa"
+
+
 # ──────────────────────────────────────────────
 # COVER  (全新布局，无品牌字样)
 # ──────────────────────────────────────────────
@@ -136,9 +170,8 @@ def build_cover(audit, findings):
     tools  = audit.get("tool_versions",{})
     tool_tags = "".join(f'<span class="tool-tag">{e(k)} <strong>{e(v)}</strong></span>' for k,v in tools.items())
 
-    start = audit.get("audit_date",{}).get("start","—")
-    end   = audit.get("audit_date",{}).get("end","—")
-    now   = datetime.now().strftime("%Y-%m-%d")
+    now   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    tool_version = get_tool_version_display()
 
     # 从实际findings动态计算统计数据
     s = audit.get("summary",{})
@@ -221,17 +254,19 @@ def build_cover(audit, findings):
     </div>
 
     <div class="cover-info-grid">
-      <div class="ci-item"><span class="ci-k">审计编号</span><span class="ci-v mono">{e(audit.get("audit_id","—"))}</span></div>
+      <div class="ci-item"><span class="ci-k">审计编号</span><span class="ci-v">{e(audit.get("audit_id","—"))}</span></div>
       <div class="ci-item"><span class="ci-k">目标环境</span><span class="ci-v">{e(env)}</span></div>
-      <div class="ci-item"><span class="ci-k">目标地址</span><span class="ci-v mono small">{e(base_url)}</span></div>
-      <div class="ci-item"><span class="ci-k">源码路径</span><span class="ci-v mono small">{e(src_path)}</span></div>
-      <div class="ci-item"><span class="ci-k">审计周期</span><span class="ci-v">{e(start)} — {e(end)}</span></div>
+      <div class="ci-item"><span class="ci-k">目标地址</span><span class="ci-v">{e(base_url)}</span></div>
+      <div class="ci-item"><span class="ci-k">源码路径</span><span class="ci-v">{e(src_path)}</span></div>
+      <div class="ci-item"><span class="ci-k">工具版本</span><span class="ci-v">{e(tool_version)}</span></div>
       <div class="ci-item"><span class="ci-k">可用角色</span><span class="ci-v">{e(roles)}</span></div>
       <div class="ci-item"><span class="ci-k">报告生成</span><span class="ci-v">{now}</span></div>
       <div class="ci-item"><span class="ci-k">认证要求</span><span class="ci-v">{"需要认证" if audit.get("target",{}).get("auth_context",{}).get("required") else "无需认证"}</span></div>
     </div>
 
-    <div class="cover-tools">{tool_tags}</div>
+    <div class="cover-tools">
+      {tool_tags}
+    </div>
   </div>
 
   <div class="cover-right">
@@ -833,8 +868,6 @@ body {
 .ci-item       { display:flex; flex-direction:column; }
 .ci-k          { font-size:11px; color:var(--text3); letter-spacing:.08em; text-transform:uppercase; margin-bottom:2px; }
 .ci-v          { font-size:13px; color:var(--text); font-weight:500; }
-.ci-v.mono     { font-family:monospace; font-size:12px; }
-.ci-v.small    { font-size:11.5px; }
 .cover-tools   { display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
 .tool-tag      { font-size:11px; background:var(--surf2); border:1px solid var(--border); border-radius:6px; padding:2px 9px; color:var(--text2); }
 .tool-tag strong { color:var(--navy); }
@@ -1428,7 +1461,7 @@ document.querySelectorAll('.filter-cb').forEach(function(cb) {
 
 def build_html(data):
     audit    = data.get("audit",{})
-    findings = data.get("findings",[])
+    findings = sort_findings_by_dktss(data.get("findings",[]))
     stage_map = {"static_audit":"静态代码审计","dynamic_verification":"静态代码审计+动态漏洞验证","report":"最终安全报告"}
     stage = stage_map.get(audit.get("stage",""), audit.get("stage",""))
     audit_stage = audit.get("stage", "static_audit")
@@ -1467,7 +1500,7 @@ def build_html(data):
   <footer class="footer">
     <span>本报告由 <strong>vibe-csa</strong> 自动审计系统生成</span>
     <span>Schema v{e(data.get("schema_version","3.0"))} · 审计编号 {e(audit.get("audit_id","—"))}</span>
-    <span>生成于 {datetime.now().strftime("%Y-%m-%d %H:%M")}</span>
+    <span>生成于 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>
   </footer>
 </div>
 

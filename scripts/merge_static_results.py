@@ -47,7 +47,11 @@ VALID_CATEGORIES = {
 
 
 def load_json_files(input_dir: Path) -> list[tuple[Path, dict]]:
-    files = sorted(input_dir.glob("*.json"))
+    files = sorted(
+        path
+        for path in input_dir.glob("*.json")
+        if path.name != "agent-static-code-map.json"
+    )
     out: list[tuple[Path, dict]] = []
     for path in files:
         try:
@@ -115,6 +119,55 @@ def safe_int(value: Any, default: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def normalize_coverage_summary(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+
+    normalized: dict[str, Any] = {}
+    for key in ("tier1_pct", "tier2_pct", "tier3_pct", "total_pct"):
+        raw = value.get(key)
+        if raw in (None, ""):
+            continue
+        try:
+            normalized[key] = float(raw)
+        except (TypeError, ValueError):
+            continue
+
+    for key in ("reviewed_files", "ealoc"):
+        raw = value.get(key)
+        if raw in (None, ""):
+            continue
+        normalized[key] = safe_int(raw, 0)
+
+    return normalized
+
+
+def resolve_merged_coverage(candidates: list[Any]) -> dict[str, Any]:
+    normalized = [normalize_coverage_summary(item) for item in candidates]
+    normalized = [item for item in normalized if item]
+    if not normalized:
+        return {}
+
+    first = normalized[0]
+    if all(item == first for item in normalized[1:]):
+        return first
+
+    # Per-agent coverage is often partial; keep percentages conservative, but let
+    # count-style fields fall back to the maximum observed value instead of zeroing out.
+    resolved: dict[str, Any] = {}
+    for key in ("tier1_pct", "tier2_pct", "tier3_pct", "total_pct"):
+        values = [item[key] for item in normalized if key in item]
+        if values and all(value == values[0] for value in values[1:]):
+            resolved[key] = values[0]
+
+    for key in ("reviewed_files", "ealoc"):
+        values = [item[key] for item in normalized if key in item]
+        if values:
+            resolved[key] = max(values)
+
+    return resolved
 
 
 def normalize_confidence(value: Any) -> str:
@@ -448,8 +501,6 @@ def merge_audit(base: dict, incoming: dict) -> dict:
                 langs.append(lang)
     if audit.get("tool_versions"):
         base.setdefault("tool_versions", {}).update(audit["tool_versions"])
-    if audit.get("coverage_summary"):
-        base.setdefault("coverage_summary", {}).update(audit["coverage_summary"])
     return base
 
 
@@ -636,9 +687,11 @@ def main() -> None:
 
     audit = default_audit(args.source_path, args.target_url, args.mode, args.language)
     findings_by_key: dict[tuple[str, int, str], dict] = {}
+    coverage_candidates: list[Any] = []
     next_index = 1
 
     for path, data in items:
+        coverage_candidates.append((data.get("audit") or {}).get("coverage_summary"))
         audit = merge_audit(audit, data)
         agent_name = data.get("agent") or path.stem
         for raw in data.get("findings") or []:
@@ -652,6 +705,7 @@ def main() -> None:
                 findings_by_key[key] = finding
                 next_index += 1
 
+    audit["coverage_summary"] = resolve_merged_coverage(coverage_candidates)
     findings = sorted(
         findings_by_key.values(),
         key=lambda f: (SEVERITY_ORDER.get(f.get("severity", "low"), 9), f.get("vuln_id", "")),

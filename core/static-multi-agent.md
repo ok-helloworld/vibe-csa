@@ -37,7 +37,7 @@ Stage 1 开始前，主流程必须先识别项目语言，并选择对应静态
 | `static-info` | 敏感信息暴露与安全配置审计专家 | 密钥泄露、硬编码凭据、弱加密、不安全随机数、错误证书校验、调试/管理接口暴露、错误信息泄露、CORS、安全响应头缺失、缓存投毒相关配置风险、CSP 缺失或配置不当、点击劫持防护缺失、Swagger/GraphQL introspection 暴露、目录索引/备份文件暴露
 
 
-## 每个 Agent **必须遵守** 的三阶段规则
+## 每个 Agent **必须遵守** 的四阶段规则
 
 ### 阶段1：生成静态骨架文件
 
@@ -67,7 +67,30 @@ workDir/agent-results/agent-{agentname}.json
 workDir/agent-results/agent-static-deser.json
 ```
 
-### 阶段2：回填静态骨架文件
+### 阶段2：读取 code map
+
+优先读取：
+
+```text
+workDir/agent-results/agent-static-code-map.json
+```
+
+重点关注：
+
+- `summary.config_files`
+- `config_refs`
+- `external_boundaries`
+- `entrypoints`
+- `operations`
+- `coverage.high_risk_modules`
+- `coverage.known_gaps`
+
+如果文件存在，应先基于 code map 筛选审计目标，避免从零扫描全仓库。
+
+如果 code map 不存在、为空或明显不完整，则退化为源码检索与源码细读，并在结果中记录覆盖缺口。
+
+
+### 阶段3：回填静态骨架文件
 
 **必须遵循**：
 
@@ -76,7 +99,7 @@ workDir/agent-results/agent-static-deser.json
 - 骨架文件字段和占位值可参考样例 `references/agent-result-example.json`
 - `findings` 可根据真实审计结果包含一条或多条项目
 - 每个 Agent 在成功发现到漏洞后，一定要在生成的json文件中包含修复建议，json字段包括审计语言：`fix.language`、当前代码片段：`fix.before`、代码修复参考：`fix.after`
-- 每个 Agent 须遵循 `core/coverage-gate.md`，计算代码审计覆盖率，然后将结果更新至 `workDir/agent-results/*.json` 的 `coverage_summary`字段
+- 每个 Agent 须参考 `core/coverage-gate.md` 记录各自可确认的覆盖信息；如无法准确汇总全局覆盖率，不要臆造最终 `coverage_summary`，最终汇总值由汇总阶段统一生成
 - 当真实发现拆分为多个项目时，保留中文标题、中文 `vuln_type`、漏洞分类标签，并优先使用 `{SKILL_ROOT}/references/bug-categories.md` 中的 `vuln_type` 值
 - `title` 漏洞标题里不要有漏洞编号，优先使用“漏洞类型 + 关键对象/位置”的短语结构，长度尽量控制在 24 个汉字以内
 - 回填说明性文本字段（如：`title`、`description`、`impact`），默认回填为中文，但不得翻译路径、参数名、字段名、URL 中的技术片段
@@ -101,7 +124,7 @@ workDir/agent-results/agent-static-deser.json
 | 相同 `file + vuln_type` 且行号接近 | 两者都保留为相关发现 |
 | 不同 agent 给出不同解读 | 两者都保留，交由报告读者或 Stage 2 决定 |
 
-### 阶段3：最终格式校验
+### 阶段4：最终格式校验
 
 **必须遵循**：每个 Agent 骨架文件完成所有静态审计、所有回填之后，须参考样例 `references/agent-result-example.json`，对各自的骨架文件进行严格的格式校验，须校验层级关系是否正确、所有字段是否符合样例 JSON 格式。
 

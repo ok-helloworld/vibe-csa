@@ -22,6 +22,7 @@ import sys
 from pathlib import Path
 
 SUB_AGENT_FILES = [
+    "static-code-map.md",
     "dynamic-verifier.md",
     "static-auth.md",
     "static-deser.md",

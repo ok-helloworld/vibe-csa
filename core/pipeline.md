@@ -1,12 +1,9 @@
-# vibe-csa v3 三阶段流水线
+# vibe-csa 三阶段流水线摘要
 
-本流水线将旧的多阶段审计流程收敛为三个严格阶段：
+本文件仅作为流程摘要和导航说明。
+具体执行规则以 `{SKILL_ROOT}/SKILL.md` 为准。
 
-1. 静态代码审计
-2. 漏洞动态验证（可选）
-3. 报告生成
-
-允许两条执行路径：
+## 执行路径
 
 ```text
 代码审计报告路径:
@@ -18,93 +15,100 @@ Stage 1 静态代码审计 -> Stage 2 漏洞动态验证 -> Stage 3 报告生成
 
 ## Stage 1: 静态代码审计
 
-### 输入
+目标：基于源码生成静态漏洞发现结果。
 
-- 源码路径
-- 可选目标 URL
-- 可选凭据说明
-
-### 步骤
-
-1. 建立 `workDir/` 工作目录。
-2. 识别语言、框架、依赖、入口文件。
-3. 基于 `core\static-multi-agent.md` 创建、并行启动多个 Agent，若子 Agent 已提前创建，只需并行启动 6 个子Agent
-4. 每个 Agent 使用 `prepare_static_aegnt_result.py` 脚本生成骨架文件
-5. 每个 Agent 基于审计结果按规范回填骨架文件 `workDir/agent-results/agent-{agentname}.json`
-6. 调用脚本 `merge_static_results.py` 合并 `workDir/agent-results`
-7. 使用 `dedupe_static_merged.py` 去重 `workDir/static-merged.json`
-
-
-### Stage 1 输出
+核心流程：
 
 ```text
-workDir/agent-results/*.json
+源码路径
+  ↓
+static-code-map 生成代码事实图谱
+  ↓
+6 个静态审计 Agent 并行审计
+  ↓
+合并静态结果
+  ↓
+去重
+  ↓
 workDir/static-merged.json
 ```
 
-### Stage 1 门禁
+关键产物：
 
-- 每个启用的 Agent 必须产生 JSON 文件。
-- 所有 JSON 必须能解析。
-- 每条 finding 必须包含：
-  - `location.snippet`
-  - `analysis.source`
-  - `analysis.sink`
-  - `analysis.data_flow`
-  - `analysis.attack_surface`
-  - `analysis.verification_plan`
-  - `static_evidence`
-  - `poc.steps=[]`
-  - `poc.result="pending"`
+```text
+workDir/agent-results/agent-static-code-map.json
+workDir/agent-results/agent-static-injection.json
+workDir/agent-results/agent-static-auth.json
+workDir/agent-results/agent-static-file-ssrf.json
+workDir/agent-results/agent-static-deser.json
+workDir/agent-results/agent-static-logic.json
+workDir/agent-results/agent-static-info.json
+workDir/static-merged.json
+```
+
+说明：
+
+- `agent-static-code-map.json` 是代码事实索引，不是漏洞结果文件。
+- 6 个静态审计 Agent 应优先读取 `agent-static-code-map.json`，再按需回读源码。
+- `agent-static-code-map.json` 不参与漏洞合并。
+- 静态发现默认是代码级假设，运行时确认只在 Stage 2 完成。
 
 ## Stage 2: 漏洞动态验证（可选）
 
-只有满足任一条件时执行：
+只有用户明确要求动态验证，或提供目标环境并要求验证运行时影响时执行。
 
-- 用户明确要求动态验证、PoC 验证、漏洞复现。
-- 用户提供目标 URL 并要求验证运行时影响。
-- 审计任务模式明确为“代码审计 + 动态验证”。
+核心流程：
 
-如果用户只要求代码审计，跳过 Stage 2，直接进入 Stage 3。
+```text
+workDir/static-merged.json
+  ↓
+生成动态验证任务
+  ↓
+dynamic-verifier 并行验证
+  ↓
+写回运行时证据
+  ↓
+workDir/dynamic-verified.json
+```
 
-### Stage 2 证据门禁
+关键产物：
 
-不能只凭 HTTP 200、无报错、返回成功判断漏洞成立。
-`response` 必须来自真实请求；`poc.evidence` 和 `dynamic_verification.final_evidence` 必须引用响应原文片段或命中签名。
+```text
+workDir/static-findings/FINDING-*.json
+workDir/dynamic-findings/FINDING-*.json
+workDir/dynamic-state.json
+workDir/dynamic-verified.json
+```
 
-| 漏洞类型 | 必须看到的证据 |
-| --- | --- |
-| 文件上传/任意文件写入 | 能访问到上传或写入后的文件，响应包含唯一 marker |
-| 文件上传 RCE | 上传/写入成功、访问到文件、看到命令输出 |
-| 命令执行 | 响应中出现真实命令输出，例如 `uid=...` |
-| SQL 注入 | 数据差异、错误信息、时间差异或可提取数据 |
-| SSRF | 内网/metadata 响应、OOB 回连、协议服务指纹 |
-| IDOR | 低权限角色读取或修改到其他用户资源 |
-| 存储型 XSS | 存储后再访问页面，响应包含唯一 payload |
+说明：
 
+- Stage 2 只验证 Stage 1 已发现的 finding。
+- 不扩展新的静态审计任务。
+- 证据不足时保持 `HYPOTHESIS`。
+- 只有真实运行时证据充分时才升级为 `CONFIRMED`。
 
 ## Stage 3: 报告生成
 
-执行脚本输出报告方法
+根据执行路径选择报告输入：
 
-## 状态传递
+```text
+仅静态审计:
+workDir/static-merged.json
 
-每个阶段结束更新 `workDir/audit-state.json`：
-
-```json
-{
-  "version": "vibe-csa-v3",
-  "stage": "static_audit",
-  "status": "PASS",
-  "mode": "standard",
-  "output_files": [
-    "workDir/static-merged.json"
-  ],
-  "metrics": {
-    "findings": 5,
-    "runtime_verified": 0,
-    "code_only": 5
-  },
-  "next_action": "Start dynamic verification"
-}
+静态审计 + 动态验证:
+workDir/dynamic-verified.json
 ```
+
+输出 HTML 和 Word 报告。
+
+## 状态文件
+
+长任务通过以下文件传递状态：
+
+```text
+workDir/audit-state.json
+workDir/dynamic-state.json
+```
+
+`audit-state.json` 记录当前阶段、状态、关键输出和下一步动作。
+`dynamic-state.json` 仅在 Stage 2 使用，用于动态验证任务调度。

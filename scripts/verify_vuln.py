@@ -195,6 +195,32 @@ PROOF_TYPE_BY_SIGNATURE = {
     "xss-stored": "http_signal",
 }
 
+DYNAMIC_SUBFILE_PERSIST_KEYS = {
+    "vuln_id",
+    "title",
+    "vuln_type",
+    "category",
+    "severity",
+    "status",
+    "evidence_level",
+    "finding_class",
+    "x_finding_class",
+    "location",
+    "dynamic_verification",
+    "poc",
+    "x_signature_type",
+    "x_unique_marker",
+    "x_custom_signatures",
+    "x_idor_other_user_marker",
+    "x_category_label",
+    "attack_path",
+    "tracking_completeness",
+    "evidence_refs",
+    "x_created_artifacts",
+    "x_cleanup_plan",
+    "x_cleanup_result",
+}
+
 
 # ─── 状态容器 ────────────────────────────────────────────────────────────────
 
@@ -995,6 +1021,109 @@ def _unwrap_subfile_after_processing(wrapped: dict) -> dict:
     return wrapped["findings"][0]
 
 
+def _safe_load_json(path: Path) -> dict[str, Any] | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _resolve_static_reference_path(
+    subfile_path: Path,
+    vuln_id: str,
+    static_ref_dir: Path | None = None,
+) -> Path | None:
+    candidates: list[Path] = []
+    if static_ref_dir:
+        candidates.append(static_ref_dir / subfile_path.name)
+    if subfile_path.parent.name == "dynamic-findings":
+        candidates.append(subfile_path.parent.parent / "static-findings" / subfile_path.name)
+    candidates.append(subfile_path.parent.parent / "static-findings" / subfile_path.name)
+
+    seen: set[Path] = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if candidate.exists():
+            return candidate
+
+    search_roots = [static_ref_dir] if static_ref_dir else []
+    fallback_root = subfile_path.parent.parent / "static-findings"
+    if fallback_root not in search_roots:
+        search_roots.append(fallback_root)
+    for root in search_roots:
+        if not root or not root.exists():
+            continue
+        for candidate in root.glob("FINDING-*.json"):
+            data = _safe_load_json(candidate)
+            if data and data.get("vuln_id") == vuln_id:
+                return candidate
+    return None
+
+
+def _merge_missing_reference_fields(target: dict[str, Any], reference: dict[str, Any]) -> None:
+    top_level_keys = (
+        "title",
+        "vuln_type",
+        "category",
+        "severity",
+        "description",
+        "impact",
+        "location",
+        "analysis",
+        "static_evidence",
+        "remediation",
+        "fix",
+        "cwe",
+        "cve",
+        "related_findings",
+    )
+    extension_keys = {
+        "x_signature_type",
+        "x_unique_marker",
+        "x_custom_signatures",
+        "x_idor_other_user_marker",
+        "x_category_label",
+    }
+    for key in top_level_keys:
+        if key not in target and key in reference:
+            target[key] = reference[key]
+    for key in extension_keys:
+        if key not in target and key in reference:
+            target[key] = reference[key]
+
+
+def _load_static_reference_into_finding(
+    target: dict[str, Any],
+    subfile_path: Path,
+    static_ref_dir: Path | None = None,
+    verbose: bool = False,
+) -> Path | None:
+    vuln_id = str(target.get("vuln_id") or "")
+    if not vuln_id:
+        return None
+    reference_path = _resolve_static_reference_path(subfile_path, vuln_id, static_ref_dir)
+    if not reference_path:
+        return None
+    reference = _safe_load_json(reference_path)
+    if not reference:
+        return None
+    _merge_missing_reference_fields(target, reference)
+    if verbose:
+        print(f"[reference] {vuln_id}: loaded static reference {reference_path}")
+    return reference_path
+
+
+def _prune_dynamic_subfile_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: payload[key]
+        for key in DYNAMIC_SUBFILE_PERSIST_KEYS
+        if key in payload
+    }
+
+
 def finding_requires_auth(finding: dict) -> bool:
     attack_surface = (finding.get("analysis") or {}).get("attack_surface") or {}
     if attack_surface.get("auth_required") is True:
@@ -1026,8 +1155,12 @@ def auth_capture_hint(target: str, username: str | None, password: str | None,
     return " ".join(cmd)
 
 
-def merge_subfiles(subfile_paths: list[Path], main_draft_path: Path,
-                   verbose: bool = False) -> int:
+def merge_subfiles(
+    subfile_paths: list[Path],
+    main_draft_path: Path,
+    verbose: bool = False,
+    static_ref_dir: Path | None = None,
+) -> int:
     """Merge sub-files' poc/failure_log/evidence/result/status/evidence_level
     into the corresponding findings of the main draft. Returns merge count."""
     if not main_draft_path.exists():
@@ -1065,6 +1198,12 @@ def merge_subfiles(subfile_paths: list[Path], main_draft_path: Path,
         if target is None:
             skipped.append(f"{p} (vuln_id={vid} not in main draft)")
             continue
+
+        reference_path = _load_static_reference_into_finding(sub, p, static_ref_dir, verbose)
+        if reference_path:
+            reference = _safe_load_json(reference_path)
+            if reference:
+                _merge_missing_reference_fields(target, reference)
 
         # Keys that Phase 4 may have updated; copy whichever the sub-file has set.
         normalize_pending_skeleton_result(sub)
@@ -1157,6 +1296,10 @@ def main() -> None:
     parser.add_argument("--merge", nargs="+", metavar="SUBFILE",
                         help="Merge mode: paths/globs of Phase 4 sub-files to merge")
     parser.add_argument("--into", help="Merge mode: target main draft JSON path")
+    parser.add_argument(
+        "--static-ref-dir",
+        help="Optional directory of static-findings/FINDING-*.json used as read-only references in verify/merge mode.",
+    )
     parser.add_argument("--target",
                         help="Target base URL (required in verify mode)")
     parser.add_argument("--finding",
@@ -1182,6 +1325,7 @@ def main() -> None:
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="Print extra diagnostic info")
     args = parser.parse_args()
+    static_ref_dir = Path(args.static_ref_dir) if args.static_ref_dir else None
 
     # ── Merge mode dispatch ──
     if args.merge:
@@ -1200,7 +1344,7 @@ def main() -> None:
                 paths.extend(Path(m) for m in matched)
             else:
                 paths.append(Path(pattern))
-        merged = merge_subfiles(paths, main_draft_path, args.verbose)
+        merged = merge_subfiles(paths, main_draft_path, args.verbose, static_ref_dir)
         sys.exit(0 if merged > 0 else 1)
 
     # ── Verify mode (default) ──
@@ -1226,6 +1370,7 @@ def main() -> None:
     subfile_mode = _detect_subfile(raw_data)
     if subfile_mode:
         data = _wrap_subfile_for_processing(raw_data)
+        _load_static_reference_into_finding(data["findings"][0], json_path, static_ref_dir, args.verbose)
         if args.verbose:
             print(f"[mode] sub-file detected (vuln_id={raw_data.get('vuln_id')}); "
                   "processing as single-finding draft")
@@ -1333,6 +1478,8 @@ def main() -> None:
         normalize_runtime_evidence(finding)
 
     payload = _unwrap_subfile_after_processing(data) if subfile_mode else data
+    if subfile_mode:
+        payload = _prune_dynamic_subfile_payload(payload)
     tmp = json_path.with_suffix(json_path.suffix + ".tmp")
     text_issues = find_text_quality_issues(payload)
     if text_issues:

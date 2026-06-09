@@ -13,6 +13,7 @@ import os
 import sys
 import argparse
 from datetime import datetime
+from pathlib import Path
 
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor, Cm
@@ -227,6 +228,22 @@ def format_http_response(response_data):
     return '\n'.join(lines)
 
 
+def get_tool_version_display():
+    """从 SKILL.md 读取工具版本，失败时回退为 vibe-csa。"""
+    skill_path = Path(__file__).resolve().parent.parent / 'SKILL.md'
+    try:
+        with open(skill_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped.startswith('version:'):
+                    version = stripped.split(':', 1)[1].strip().strip('"').strip("'")
+                    if version:
+                        return f'vibe-csa {version}'
+    except OSError:
+        pass
+    return 'vibe-csa'
+
+
 # =============================================================================
 # 图表生成
 # =============================================================================
@@ -414,7 +431,7 @@ def generate_report(data, logo_path, output_path):
     info_data = [
         ('审计编号', data['audit']['audit_id']),
         ('审计对象', data['audit']['repository']),
-        ('审计周期', f"{data['audit']['audit_date']['start']} 至 {data['audit']['audit_date']['end']}"),
+        ('工具版本', get_tool_version_display()),
         ('目标语言', ', '.join(data['audit']['language'])),
         ('报告生成时间', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
     ]

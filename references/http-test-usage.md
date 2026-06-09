@@ -61,7 +61,7 @@ python {SKILL_ROOT}/scripts/http_test.py \
 
 ---
 
-## 代码审计 PoC 验证场景模板
+## 漏洞验证场景模板
 
 ### 场景 1: SQL 注入验证（错误回显检测）
 

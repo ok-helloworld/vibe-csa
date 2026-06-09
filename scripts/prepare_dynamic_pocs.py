@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Initialize Stage 2 PoC working files from Stage 1 static findings.
+"""Initialize Stage 2 working files from Stage 1 static findings.
 
-The output is a single-finding JSON scaffold based on
-`references/dynamic-init-example.json`, then filled with the static finding
-content from `static-merged.json` and written as
-`FINDING-001.json`.
+Stage 2 now uses two per-finding files:
+- `static-findings/FINDING-001.json`: static reference context for the
+  dynamic-verifier agent to read.
+- `dynamic-findings/FINDING-001.json`: runtime scaffold that the
+  dynamic-verifier agent updates with dynamic evidence.
 """
 
 from __future__ import annotations
@@ -35,6 +36,46 @@ REPO_ROOT = SCRIPT_DIR.parent
 DEFAULT_TEMPLATE = REPO_ROOT / "references" / "dynamic-init-example.json"
 SEVERITY_ORDER = {"critical", "high", "medium", "low"}
 SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+STATIC_CONTEXT_KEYS = (
+    "vuln_id",
+    "title",
+    "vuln_type",
+    "category",
+    "severity",
+    "confidence",
+    "impact",
+    "dktss_score",
+    "description",
+    "location",
+    "analysis",
+    "static_evidence",
+    "remediation",
+    "fix",
+    "cwe",
+    "cve",
+    "related_findings",
+)
+DYNAMIC_RUNTIME_KEYS = (
+    "vuln_id",
+    "title",
+    "vuln_type",
+    "category",
+    "severity",
+    "status",
+    "evidence_level",
+    "finding_class",
+    "x_finding_class",
+    "location",
+    "dynamic_verification",
+    "poc",
+)
+DYNAMIC_RUNTIME_EXTENSION_KEYS = {
+    "x_signature_type",
+    "x_unique_marker",
+    "x_custom_signatures",
+    "x_idor_other_user_marker",
+    "x_category_label",
+}
 
 
 def signature_type_for(finding: dict) -> str:
@@ -137,13 +178,19 @@ def conflict_key_for(finding: dict, side_effect_level: str) -> str:
     return f"{auth_scope}|role:{required_role}|method:{method}|route:{route}|effect:{side_effect_level}"
 
 
-def build_state_entry(prepared: dict, output_file: Path, state_file: Path) -> dict[str, Any]:
+def build_state_entry(
+    prepared: dict,
+    dynamic_output_file: Path,
+    static_output_file: Path,
+    state_file: Path,
+) -> dict[str, Any]:
     severity = normalize_severity(prepared.get("severity"))
     side_effect_level = side_effect_level_for(prepared)
     return {
         "vuln_id": str(prepared.get("vuln_id") or ""),
         "severity": severity,
-        "finding_file": state_path_for(output_file, state_file),
+        "finding_file": state_path_for(dynamic_output_file, state_file),
+        "static_finding_file": state_path_for(static_output_file, state_file),
         "queue_state": "pending",
         "leased_by": "",
         "lease_until": "",
@@ -297,6 +344,43 @@ def prepare_finding(raw: dict) -> dict:
     return finding
 
 
+def copy_selected_fields(source: dict, keys: tuple[str, ...]) -> dict:
+    return {
+        key: copy.deepcopy(source[key])
+        for key in keys
+        if key in source
+    }
+
+
+def copy_extension_fields(
+    source: dict,
+    include: set[str] | None = None,
+    exclude: set[str] | None = None,
+) -> dict:
+    payload: dict[str, Any] = {}
+    for key, value in source.items():
+        if not key.startswith("x_"):
+            continue
+        if include is not None and key not in include:
+            continue
+        if exclude is not None and key in exclude:
+            continue
+        payload[key] = copy.deepcopy(value)
+    return payload
+
+
+def build_static_context_finding(prepared: dict) -> dict:
+    finding = copy_selected_fields(prepared, STATIC_CONTEXT_KEYS)
+    finding.update(copy_extension_fields(prepared, exclude={"x_finding_class"}))
+    return finding
+
+
+def build_dynamic_runtime_finding(prepared: dict) -> dict:
+    finding = copy_selected_fields(prepared, DYNAMIC_RUNTIME_KEYS)
+    finding.update(copy_extension_fields(prepared, include=DYNAMIC_RUNTIME_EXTENSION_KEYS))
+    return finding
+
+
 def should_prepare(finding: dict, include_all: bool) -> bool:
     if include_all:
         return True
@@ -308,8 +392,15 @@ def main() -> None:
     parser.add_argument("--input", required=True, help="Path to .vibe-csa/static-merged.json")
     parser.add_argument(
         "--output-dir",
-        required=True,
-        help="Directory for FINDING-001.json style finding files",
+        help="Deprecated alias for --dynamic-output-dir. If only this is provided, static files default to a sibling static-findings directory.",
+    )
+    parser.add_argument(
+        "--dynamic-output-dir",
+        help="Directory for FINDING-001.json style runtime finding files.",
+    )
+    parser.add_argument(
+        "--static-output-dir",
+        help="Directory for FINDING-001.json style static reference finding files.",
     )
     parser.add_argument(
         "--template",
@@ -346,9 +437,13 @@ def main() -> None:
         raise SystemExit(f"[ERROR] template root must produce an object scaffold: {args.template}")
 
     data = load_json(Path(args.input))
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    state_file = Path(args.state_file) if args.state_file else default_state_file_for(output_dir)
+    dynamic_output_dir = Path(args.dynamic_output_dir or args.output_dir or "")
+    if not str(dynamic_output_dir):
+        raise SystemExit("[ERROR] one of --dynamic-output-dir or --output-dir is required")
+    static_output_dir = Path(args.static_output_dir) if args.static_output_dir else dynamic_output_dir.parent / "static-findings"
+    dynamic_output_dir.mkdir(parents=True, exist_ok=True)
+    static_output_dir.mkdir(parents=True, exist_ok=True)
+    state_file = Path(args.state_file) if args.state_file else default_state_file_for(dynamic_output_dir)
 
     wanted = set(args.finding)
     count = 0
@@ -366,11 +461,16 @@ def main() -> None:
             for issue in issues[:10]:
                 print(f"  - {issue['path']}: {issue['message']}", file=sys.stderr)
             sys.exit(1)
-        out = output_dir / output_filename_for(prepared, idx)
-        atomic_write_json(out, prepared)
-        state_findings.append(build_state_entry(prepared, out, state_file))
+        filename = output_filename_for(prepared, idx)
+        static_payload = build_static_context_finding(prepared)
+        dynamic_payload = build_dynamic_runtime_finding(prepared)
+        static_out = static_output_dir / filename
+        dynamic_out = dynamic_output_dir / filename
+        atomic_write_json(static_out, static_payload)
+        atomic_write_json(dynamic_out, dynamic_payload)
+        state_findings.append(build_state_entry(prepared, dynamic_out, static_out, state_file))
         count += 1
-        print(f"[OK] prepared {vid}: {out}")
+        print(f"[OK] prepared {vid}: static={static_out} dynamic={dynamic_out}")
 
     if count == 0:
         print("[WARN] no findings prepared", file=sys.stderr)

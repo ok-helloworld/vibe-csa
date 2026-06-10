@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """
-Install the 7 bundled sub-agent markdown definitions into an agent platform folder.
+Install the 8 bundled sub-agent markdown definitions into an agent platform folder.
 
-Supported defaults:
-    - Trae  -> <project_root>/.trae/agents
-    - Qoder -> <project_root>/.qoder/agents
+Default provider mapping:
+    - <provider> -> <project_root>/.<provider>/agents
 
 Examples:
     python scripts/install_sub_agents.py --provider trae
-    python scripts/install_sub_agents.py --provider qoder --project-root D:/demo/app
-    python scripts/install_sub_agents.py --provider trae --force
-    python scripts/install_sub_agents.py --dest-dir D:/demo/app/.trae/agents
+    python scripts/install_sub_agents.py --provider codex --project-root D:/demo/app
+    python scripts/install_sub_agents.py --provider claude --force
+    python scripts/install_sub_agents.py --dest-dir D:/demo/app/.custom/agents
 """
 
 from __future__ import annotations
@@ -32,12 +31,6 @@ SUB_AGENT_FILES = [
     "static-logic.md",
 ]
 
-PROVIDER_DIRS = {
-    "trae": (".trae", "agents"),
-    "qoder": (".qoder", "agents"),
-}
-
-
 def resolve_skill_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
@@ -48,8 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--provider",
-        choices=sorted(PROVIDER_DIRS),
-        help="目标智能体软件类型。未提供时必须使用 --dest-dir。",
+        help="目标智能体软件类型，如 trae、qoder、codex、claude；未提供时必须使用 --dest-dir。",
     )
     parser.add_argument(
         "--project-root",
@@ -98,8 +90,10 @@ def resolve_dest_dir(args: argparse.Namespace, project_root: Path) -> Path:
     if not args.provider:
         raise RuntimeError("必须提供 --provider 或 --dest-dir 其中之一。")
 
-    provider_root, provider_dir = PROVIDER_DIRS[args.provider]
-    return (project_root / provider_root / provider_dir).resolve()
+    provider = str(args.provider).strip()
+    if not provider:
+        raise RuntimeError("--provider 不能为空。")
+    return (project_root / f".{provider}" / "agents").resolve()
 
 
 def copy_sub_agents(

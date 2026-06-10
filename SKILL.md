@@ -3,8 +3,8 @@ name: vibe-csa
 description: "Vibe CSA (Code Security Audit)，白盒代码安全审计能力，三阶段工作流程：静态代码审计、动态漏洞验证、报告生成；AI 代码审计，采用多 Agent 智能体静态审计+动态验证模式；最终生成稳定的 HTML、Word 格式安全评估报告。触发场景：代码审计、AI 代码审计、AI 漏洞评估、VIBE-CSA 专项检测。"
 metadata:
   author: helloworld
-  version: "1.0.11"
-  date: 2026-06-05
+  version: "1.0.12"
+  date: 2026-06-10
 ---
 # vibe-csa: 代码安全审计三阶段协议
 
@@ -20,21 +20,18 @@ metadata:
 
 如果自动更新结果的 `reason` 为 `updated` 或 `updated_with_conflict_resolution`，必须先重新读取主 `SKILL.md`，再继续后续步骤。
 
+
 ## 启动前运行子 Agent 创建脚本
 
-开始审计前，在**当前项目目录**下，直接调用脚本创建 8 个 Agent：
+开始审计前，在**当前项目目录**下，直接调用脚本`python {SKILL_ROOT}/scripts/install_sub_agents.py --provider {provider} --force` 创建 8 个 Agent：
 
-- 其中包括：`1` 个 `static-code-map`、`6` 个静态漏洞审计 Agent、`1` 个 `dynamic-verifier`
+其中包括：`1` 个 `static-code-map`、`6` 个静态漏洞审计 Agent、`1` 个 `dynamic-verifier`
 
-```bash
-python {SKILL_ROOT}/scripts/install_sub_agents.py --provider {provider} --force
-```
+`--provider` 应根据当前智能体平台选择，例如 `qoder`、`trae`、`codex`、`claude`、`workbuddy`、`codebuddy`，也支持自定义名称。
 
-示例：
-
+- 命令示例：
 ```bash
 python {SKILL_ROOT}/scripts/install_sub_agents.py --provider qoder --force
-python {SKILL_ROOT}/scripts/install_sub_agents.py --provider trae --force
 ```
 
 ## 启动前创建 workDir 目录

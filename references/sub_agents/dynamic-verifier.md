@@ -196,33 +196,32 @@ step 3: 传入命令并在响应中看到 uid=... 或等价输出
 
 必须写入以下字段：
 
-- `poc.result`
-- `status`
-- `finding_class`
+- `poc.result`：验证结果，必须为 `success` 或 `failed`。
+- `status`：验证状态，验证成功后为 `CONFIRMED`，失败后为 `HYPOTHESIS`。
+- `finding_class`：漏洞类型，必须为 `vuln` 或 `info`。
 - `poc.steps[].request`、`poc.steps[].response`：都需要保留 `http_test.py` 输出的完整请求与响应数据。
 - `poc.evidence`：引用具体 step 和响应原文片段。
 - `poc.steps[].response._evidence_match[]`：记录 `type`、`pattern`、`strength`、`snippet`。
-- `dynamic_verification.state`
-- `dynamic_verification.attempts[]`
+- `dynamic_verification.state`：验证状态，必须为 `verified` 或 `failed`。
+- `dynamic_verification.attempts[]`：逐轮记录验证策略、结果、证据片段和下一步动作，并尽量关联对应 `poc.steps[]`。
 - `dynamic_verification.final_evidence`：记录最终证明类型和证据片段。
-- `dynamic_verification.runtime_notes`
+- `dynamic_verification.runtime_notes`：记录认证条件、环境限制、绕过点和异常说明。
 
 其它要求：
 - `poc.steps[].response.status` 使用整数状态码，字段名是 `status`，不是 `status_code`
 - 成功写回时，`poc.result`、`status`、`finding_class` 必须相互一致；如保留 `x_finding_class`，其值也必须与 `finding_class` 一致
 - 成功验证后，`evidence_level` 不得保留 `L0`，应按实际证据强度提升到 `L2` 或 `L3`
-- 失败态还应补全 `poc.failure_log[]`（结构化字典/对象，不能只写纯字符串）
+- 如果验证失败，还应补全 `poc.failure_log[]`（结构化字典/对象，不能只写纯字符串）
 - 失败或阻断时，`dynamic_verification.state`、`poc.failure_log[]`、`dynamic_verification.final_evidence.proof_type` 必须与真实结果一致
 - `attempts[].request_ref`、`attempts[].response_ref` 使用 `poc.steps[]` 的数组下标，不要按 `step` 的自然数编号填写
 - 若当前队列项准备写成 `done`，则 finding 文件的 `poc.result` 必须为 `success`
 
 说明性默认回填中文：
 - 回填说明性文本字段，默认回填为中文，但不得翻译路径、参数名、字段名、payload、状态码、URL 中的技术片段
-- 默认需要回填中文的字段，如：`poc.steps.name`、`dynamic_verification.attempts[].result`、`next_action`、`payload_strategy`、`action`
+- 默认需要回填中文的字段，如：`poc.steps.name`、`dynamic_verification.attempts[].result`、`next_action`、`payload_strategy`、`vuln_type`、`action`
 
 非必填字段：
 - `poc.steps[].request.raw`、`poc.steps[].response.raw`不是必填项
-- `vuln_type` 骨架文件中已定义，无需回填
 
 字段含义不清楚、或需要查看 dynamic finding 的示例与字段说明时，优先参考：
 - `references/dynamic-finding-example.md`
@@ -252,11 +251,9 @@ step 3: 传入命令并在响应中看到 uid=... 或等价输出
 
 ## 完成前一致性校验（硬门槛）
 
-在把 `workDir/dynamic-state.json` 中当前队列项写为 `done` 之前，必须先检查当前 finding 文件的关键状态是否一致。
-
-检查方法：如果当前队列项准备写成 `done`，则 finding 文件的 `poc.result` 必须为 `success`。
-
-不一致时，需要基于真实漏洞验证情况修正 finding 文件，或者重新执行漏洞验证流程，再更新队列状态。
+- 准备将当前队列项 `workDir/dynamic-state.json` 中的 `queue_state` 写为 `done` 前，必须先检查对应 finding 文件的 `poc.result`。
+- 只有 `poc.result` 为 `success` 或 `failed` 时，确认已执行过漏洞验证，才允许写为 `done`。
+- 否则不得更新为 `done`；应按真实验证结果，修正 finding 文件，必要时重新执行验证。
 
 ## 输出
 

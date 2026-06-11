@@ -133,9 +133,9 @@ workDir/agent-results/agent-static-deser.json
 1. 所有字段必须基于真实审计结果回填
 2. 不得回填虚假数据
 3. `findings` 可包含一条或多条真实发现
-4. 漏洞标题、中文漏洞类型、bug 分类标签、`vuln_type` 优先从 `{SKILL_ROOT}/references/bug-categories.md` 选择
+4. 漏洞标题、中文漏洞类型、bug 分类标签、`vuln_type` 优先从 `{SKILL_ROOT}/references/bug-categories.md` 选择，默认都使用中文
 5. `title` 使用“漏洞类型 + 关键对象/位置”的短语结构，长度控制在 24 个汉字以内
-6. 说明性文本默认中文，路径、参数名、字段名、URL 不翻译
+6. 回填说明性文本字段，默认回填为中文，但不得翻译路径、参数名、字段名、URL 中的技术片段
 7. 发现漏洞时必须包含修复建议：
 
    - `fix.language`

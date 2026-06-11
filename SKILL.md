@@ -3,8 +3,8 @@ name: vibe-csa
 description: "Vibe CSA (Code Security Audit)，白盒代码安全审计能力，三阶段工作流程：静态代码审计、动态漏洞验证、报告生成；AI 代码审计，采用多 Agent 智能体静态审计+动态验证模式；最终生成稳定的 HTML、Word 格式安全评估报告。触发场景：代码审计、AI 代码审计、AI 漏洞评估、VIBE-CSA 专项检测。"
 metadata:
   author: helloworld
-  version: "1.0.12"
-  date: 2026-06-10
+  version: "1.0.13"
+  date: 2026-06-11
 ---
 # vibe-csa: 代码安全审计三阶段协议
 
@@ -27,7 +27,7 @@ metadata:
 
 其中包括：`1` 个 `static-code-map`、`6` 个静态漏洞审计 Agent、`1` 个 `dynamic-verifier`
 
-`--provider` 应根据当前智能体平台选择，例如 `qoder`、`trae`、`codex`、`claude`、`workbuddy`、`codebuddy`，也支持自定义名称。
+`--provider` 应根据当前智能体平台选择，例如 `qoder`、`opencode`、`trae`、`claude`、`workbuddy`、`codebuddy`，也支持自定义名称。
 
 - 命令示例：
 ```bash
@@ -84,9 +84,12 @@ Stage 3 报告生成
 ```
 
 
-## 子 Agent 角色简介
+## Multi Agent 角色简介
 
 ### 静态代码审计子 Agent
+
+主流程在后续执行过程中，通过智能体平台提供的 Multi-Agent / Subagents 能力或等效工作流能力创建以下 6 个静态代码审计子 Agent，须并行执行。
+
 | Agent 标识名 | Agent 专家角色 | 关注点 | 创建 Agent 定义文件 |
 | --- | --- | --- | --- |
 | `static-code-map` | 代码事实图谱构建专家 | 在静态漏洞审计前抽取项目入口、身份权限上下文、关键业务对象、调用链、危险操作、状态变化、外部边界与安全相关配置引用，生成共享事实索引 `agent-static-code-map.json`，供后续 6 个静态漏洞审计 Agent 复用 | `{SKILL_ROOT}/references/sub_agents/static-code-map.md` |
@@ -98,6 +101,9 @@ Stage 3 报告生成
 | `static-info` | 敏感信息暴露与安全配置审计专家 | 密钥泄露、硬编码凭据、弱加密、不安全随机数、错误证书校验、调试/管理接口暴露、错误信息泄露、CORS、安全响应头缺失、缓存投毒相关配置风险、CSP 缺失或配置不当、点击劫持防护缺失、Swagger/GraphQL introspection 暴露、目录索引/备份文件暴露 | `{SKILL_ROOT}/references/sub_agents/static-info.md` |
 
 ### 动态漏洞验证子 Agent
+
+主流程在后续执行过程中，通过智能体平台提供的 Multi-Agent / Subagents 能力或等效工作流能力，按需创建 `1~5` 个 `dynamic-verifier` 动态漏洞验证 Agent，须并行执行。
+
 | Agent 标识名 | Agent 专家角色 | 关注点 | 创建 Agent 定义文件 |
 | --- | --- | --- | --- |
 | `dynamic-verifier` | 运行时漏洞验证与 PoC 构造专家 | 基于 Stage 1 finding 执行真实请求验证、认证态复用、路由/参数/权限复核、PoC 构造、运行时证据提取、漏洞确认与排除、失败原因记录、`dynamic-state.json` 状态流转、`workDir/dynamic-findings/FINDING-*.json` 回填、安全边界控制；只验证已有 finding，不扩展为新的静态审计任务 | `{SKILL_ROOT}/references/sub_agents/dynamic-verifier.md` |
@@ -139,6 +145,7 @@ static-info
 ```
 
 - 6 个 Agent 并发执行审计任务。
+- 6 个 Agent 必须完整读取各自负责的 `{SKILL_ROOT}/references/sub_agents/{agentname}.md`。
 - 每个 Agent 开始审计前，须使用 `scripts/prepare_static_aegnt_result.py` 生成自身静态审计骨架文件：
 
 ```bash

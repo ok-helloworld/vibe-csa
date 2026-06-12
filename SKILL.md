@@ -3,8 +3,8 @@ name: vibe-csa
 description: "Vibe CSA (Code Security Audit)，白盒代码安全审计能力，三阶段工作流程：静态代码审计、动态漏洞验证、报告生成；AI 代码审计，采用多 Agent 智能体静态审计+动态验证模式；最终生成稳定的 HTML、Word 格式安全评估报告。触发场景：代码审计、AI 代码审计、AI 漏洞评估、VIBE-CSA 专项检测。"
 metadata:
   author: helloworld
-  version: "1.0.13"
-  date: 2026-06-11
+  version: "1.0.14"
+  date: 2026-06-12
 ---
 # vibe-csa: 代码安全审计三阶段协议
 
@@ -256,7 +256,7 @@ python {SKILL_ROOT}/scripts/prepare_dynamic_pocs.py \
 
 #### Stage 2.4 子 Agent 执行动态漏洞验证
 
-- 并行 `dynamic-verifier` 子 Agent 的任务领取、冲突规避、状态更新、漏洞验证与写回边界统一遵循 `{SKILL_ROOT}/core/dynamic-multi-agent.md`。
+- 并行 `dynamic-verifier` 子 Agent 的任务领取、冲突规避、状态更新、漏洞验证与写回边界统一遵循 `{SKILL_ROOT}/references/sub_agents/dynamic-verifier.md`。
 - 若存在 `assigned_slot`，则子 Agent 只处理分配给自身槽位的 finding；若未预分配，则退回共享队列自动领取模式。
 - 并行 `dynamic-verifier` 子 Agent 需要持续从当前 Stage 2 队列中领取并处理任务，直到 `workDir/dynamic-state.json` 中本轮验证范围内不再存在可领取的 `findings[].queue_state="pending"` finding。
 - `dynamic-state.json` 只用于轻量调度状态传递，不用于存储完整请求、完整响应、长证据片段或推理过程；漏洞验证时读取 `workDir/static-findings/FINDING-*.json`，并把运行时数据只写回各自的 `workDir/dynamic-findings/FINDING-*.json`。

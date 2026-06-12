@@ -1,0 +1,92 @@
+rules:
+  - id: go-ssrf-001-http-get-variable
+    patterns:
+      - pattern: http.Get($URL)
+      - pattern-not: http.Get("...")
+    message: "http.Get uses a non-literal URL. Validate scheme, resolved IP, port, redirects, and proxy behavior."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      references:
+        - "https://owasp.org/www-community/attacks/Server_Side_Request_Forgery"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-ssrf-002-http-request-variable
+    pattern-either:
+      - patterns:
+          - pattern: http.NewRequest($METHOD, $URL, ...)
+          - pattern-not: http.NewRequest($METHOD, "...", ...)
+      - patterns:
+          - pattern: http.NewRequestWithContext($CTX, $METHOD, $URL, ...)
+          - pattern-not: http.NewRequestWithContext($CTX, $METHOD, "...", ...)
+    message: "An HTTP request is created with a dynamic URL. Trace the URL and revalidate every redirect target."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      references:
+        - "https://pkg.go.dev/net/http"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-ssrf-003-net-dial-variable
+    pattern-either:
+      - patterns:
+          - pattern: net.Dial($NETWORK, $ADDR)
+          - pattern-not: net.Dial($NETWORK, "...")
+      - patterns:
+          - pattern: net.DialTimeout($NETWORK, $ADDR, $TIMEOUT)
+          - pattern-not: net.DialTimeout($NETWORK, "...", $TIMEOUT)
+    message: "A raw network connection uses a dynamic address. Restrict destinations and block private, loopback, and link-local ranges."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      references:
+        - "https://pkg.go.dev/net"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-ssrf-004-grpc-dynamic-target
+    pattern-either:
+      - patterns:
+          - pattern: grpc.Dial($TARGET, ...)
+          - pattern-not: grpc.Dial("...", ...)
+      - patterns:
+          - pattern: grpc.DialContext($CTX, $TARGET, ...)
+          - pattern-not: grpc.DialContext($CTX, "...", ...)
+      - patterns:
+          - pattern: grpc.NewClient($TARGET, ...)
+          - pattern-not: grpc.NewClient("...", ...)
+    message: "A gRPC client connects to a dynamic target. Validate resolver scheme and resolved destination."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      references:
+        - "https://pkg.go.dev/google.golang.org/grpc"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-ssrf-005-dynamic-reverse-proxy
+    patterns:
+      - pattern: httputil.NewSingleHostReverseProxy($URL)
+      - pattern-not-inside: |
+          $URL, $ERR = url.Parse("...")
+          ...
+    message: "A reverse proxy target may be dynamic. Confirm that untrusted input cannot control the upstream URL."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-918"
+      references:
+        - "https://pkg.go.dev/net/http/httputil"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2

@@ -1,0 +1,112 @@
+rules:
+  - id: go-file-001-dynamic-read
+    pattern-either:
+      - patterns:
+          - pattern: os.ReadFile($PATH)
+          - pattern-not: os.ReadFile("...")
+      - patterns:
+          - pattern: os.Open($PATH)
+          - pattern-not: os.Open("...")
+      - patterns:
+          - pattern: os.OpenFile($PATH, $FLAGS, $MODE)
+          - pattern-not: os.OpenFile("...", $FLAGS, $MODE)
+    message: "A file is opened using a dynamic path. Verify confinement to a trusted root, including symlink handling."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      references:
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-file-002-dynamic-write
+    pattern-either:
+      - patterns:
+          - pattern: os.Create($PATH)
+          - pattern-not: os.Create("...")
+      - patterns:
+          - pattern: os.WriteFile($PATH, $DATA, $MODE)
+          - pattern-not: os.WriteFile("...", $DATA, $MODE)
+      - patterns:
+          - pattern: os.Rename($OLD, $PATH)
+          - pattern-not: os.Rename($OLD, "...")
+    message: "A file is written or moved to a dynamic path. Check traversal, overwrite, symlink, and secondary-consumption risks."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-73"
+      references:
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-file-003-dynamic-serve-file
+    pattern-either:
+      - patterns:
+          - pattern: http.ServeFile($W, $R, $PATH)
+          - pattern-not: http.ServeFile($W, $R, "...")
+      - patterns:
+          - pattern: $CTX.File($PATH)
+          - pattern-not: $CTX.File("...")
+      - patterns:
+          - pattern: $CTX.SendFile($PATH, ...)
+          - pattern-not: $CTX.SendFile("...", ...)
+    message: "A dynamic filesystem path is returned to the client. Confirm canonical root confinement and authorization."
+    severity: ERROR
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      references:
+        - "https://pkg.go.dev/net/http#ServeFile"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-file-004-upload-client-filename
+    pattern-either:
+      - pattern: os.Create(filepath.Join($DIR, $HEADER.Filename))
+      - pattern: os.WriteFile(filepath.Join($DIR, $HEADER.Filename), $DATA, $MODE)
+      - pattern: os.OpenFile(filepath.Join($DIR, $HEADER.Filename), $FLAGS, $MODE)
+    message: "A client-supplied multipart filename is used in a destination path. Generate a server-side name and enforce root confinement."
+    severity: ERROR
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      references:
+        - "https://pkg.go.dev/mime/multipart#FileHeader"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-file-005-zip-slip-candidate
+    pattern-either:
+      - pattern: filepath.Join($DEST, $FILE.Name)
+      - pattern: path.Join($DEST, $FILE.Name)
+    message: "An archive entry name is joined to a destination. When used during extraction, verify the final path remains inside the destination."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-22"
+      references:
+        - "https://owasp.org/www-community/attacks/Path_Traversal"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-file-006-dangerous-remove-all
+    patterns:
+      - pattern: os.RemoveAll($PATH)
+      - pattern-not: os.RemoveAll("...")
+    message: "os.RemoveAll uses a dynamic path. Confirm strict root confinement before recursive deletion."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-73"
+      references:
+        - "https://pkg.go.dev/os#RemoveAll"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2

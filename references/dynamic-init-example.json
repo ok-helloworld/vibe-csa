@@ -164,7 +164,7 @@
                     "raw": ""
                 },
                 "response": {
-                    "status": 200,
+                    "status_code": 200,
                     "headers": {
                         "Date": "Wed, 20 May 2026 04:44:11 GMT",
                         "Server": "Apache/2.4.54 (Debian)",

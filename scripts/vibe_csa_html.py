@@ -583,7 +583,7 @@ def build_finding(f, idx, audit_stage="static_audit"):
         req_display = "\n".join(req_lines)
         
         # 拼接 RESPONSE 数据包
-        status_code = resp.get("status", 0)
+        status_code = resp.get("status_code", 0)
         resp_headers = resp.get("headers", {})
         resp_body = resp.get("body", "")
         

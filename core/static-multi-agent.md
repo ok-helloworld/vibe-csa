@@ -9,6 +9,7 @@ Stage 1 开始前，主流程必须先识别项目语言，并选择对应静态
 | Java/Kotlin | `{SKILL_ROOT}/plugins/java/` | `{SKILL_ROOT}/plugins/java/SKILL.md` |
 | Python | `{SKILL_ROOT}/plugins/python/` | `{SKILL_ROOT}/plugins/python/SKILL.md` |
 | PHP | `{SKILL_ROOT}/plugins/php/` | `{SKILL_ROOT}/plugins/php/SKILL.md` |
+| Go | `{SKILL_ROOT}/plugins/go/` | `{SKILL_ROOT}/plugins/go/SKILL.md` |
 | 其他 | `{SKILL_ROOT}/plugins/_generic/` | `{SKILL_ROOT}/plugins/_generic/SKILL.md` |
 
 静态子 Agent 开始审计前，子 Agent 应基于”自身角色“与”关注点“，参考静态审计插件目录中的 `SKILL.md` 文件开展审计，但不得将其视为封闭枚举清单，仍需结合实际代码进行独立判断。

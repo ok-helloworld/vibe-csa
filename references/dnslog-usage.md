@@ -2,7 +2,7 @@
 
 ## 概述
 
-`dnslog.py` 是 vibe-pentest 渗透测试中**OOB（Out-of-Band）漏洞验证的专用工具**，基于 [dnslog.cn](http://dnslog.cn) 服务实现 DNS 查询记录获取。
+`dnslog.py` 是 **OOB（Out-of-Band）漏洞验证的专用工具**，基于 [dnslog.cn](http://dnslog.cn) 服务实现 DNS 查询记录获取。
 
 - 纯 Python 实现，仅依赖 `requests` 库
 - Cookie 会话自动持久化到临时文件，确保 get_domain 和 get_records 使用同一会话
@@ -84,7 +84,10 @@ python {SKILL_ROOT}/scripts/http_test.py \
 python {SKILL_ROOT}/scripts/dnslog.py get_records "$DOMAIN" 5
 ```
 
-**判断标准**：`status` 为 `success` 且 `record_count` > 0 → SSRF 漏洞 confirmed
+**判断标准**：
+同时满足以下条件
+1. `status` 为 `success` 且 `record_count` > 0
+2. 当 DNS 回连记录同时满足“命中当前 payload 的唯一标识”“时间窗口与当前验证请求一致”时，才能作为有效运行时证据。
 
 ### 场景2: 盲 XXE DNS 回调
 
@@ -105,7 +108,10 @@ python {SKILL_ROOT}/scripts/http_test.py \
 python {SKILL_ROOT}/scripts/dnslog.py get_records "$DOMAIN" 5
 ```
 
-**判断标准**：`status` 为 `success` 且 `record_count` > 0 → XXE 漏洞 confirmed
+**判断标准**：
+同时满足以下条件
+1. `status` 为 `success` 且 `record_count` > 0
+2. 当 DNS 回连记录同时满足“命中当前 payload 的唯一标识”“时间窗口与当前验证请求一致”时，才能作为有效运行时证据。
 
 ### 场景3: 命令注入 OOB 验证
 
@@ -124,7 +130,10 @@ python {SKILL_ROOT}/scripts/http_test.py \
 python {SKILL_ROOT}/scripts/dnslog.py get_records "$DOMAIN" 8
 ```
 
-**判断标准**：`status` 为 `success` 且 `record_count` > 0 → 命令注入 confirmed
+**判断标准**：
+同时满足以下条件
+1. `status` 为 `success` 且 `record_count` > 0
+2. 当 DNS 回连记录同时满足“命中当前 payload 的唯一标识”“时间窗口与当前验证请求一致”时，才能作为有效运行时证据。
 
 ### 场景4: SQL 盲注 OOB 外带（MySQL）
 
@@ -162,7 +171,10 @@ python {SKILL_ROOT}/scripts/http_test.py \
 python {SKILL_ROOT}/scripts/dnslog.py get_records "$DOMAIN" 5
 ```
 
-**判断标准**：`status` 为 `success` 且 `record_count` > 0 → JNDI 注入 confirmed
+**判断标准**：
+同时满足以下条件
+1. `status` 为 `success` 且 `record_count` > 0
+2. 当 DNS 回连记录同时满足“命中当前 payload 的唯一标识”“时间窗口与当前验证请求一致”时，才能作为有效运行时证据。
 
 ---
 

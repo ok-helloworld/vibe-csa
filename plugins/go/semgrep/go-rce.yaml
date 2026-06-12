@@ -1,0 +1,80 @@
+rules:
+  - id: go-rce-001-exec-command-variable
+    patterns:
+      - pattern: exec.Command($CMD, ...)
+      - pattern-not: exec.Command("...", ...)
+    message: "exec.Command uses a non-literal executable name. Trace the value and arguments; user control may allow command or argument injection."
+    severity: ERROR
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-78"
+      references:
+        - "https://pkg.go.dev/os/exec"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-rce-002-exec-command-context-variable
+    patterns:
+      - pattern: exec.CommandContext($CTX, $CMD, ...)
+      - pattern-not: exec.CommandContext($CTX, "...", ...)
+    message: "exec.CommandContext uses a non-literal executable name. Validate the executable and every argument with an allowlist."
+    severity: ERROR
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-78"
+      references:
+        - "https://pkg.go.dev/os/exec"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-rce-003-shell-command
+    pattern-either:
+      - pattern: exec.Command("sh", "-c", $CMD, ...)
+      - pattern: exec.Command("bash", "-c", $CMD, ...)
+      - pattern: exec.Command("cmd", "/C", $CMD, ...)
+      - pattern: exec.Command("powershell", ..., $CMD, ...)
+      - pattern: exec.CommandContext($CTX, "sh", "-c", $CMD, ...)
+      - pattern: exec.CommandContext($CTX, "bash", "-c", $CMD, ...)
+      - pattern: exec.CommandContext($CTX, "cmd", "/C", $CMD, ...)
+    message: "A shell interpreter executes a dynamic command. If the command contains external input this is command injection."
+    severity: ERROR
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-78"
+      references:
+        - "https://owasp.org/www-community/attacks/Command_Injection"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-rce-004-dynamic-template-parse
+    patterns:
+      - pattern: template.New(...).Parse($INPUT)
+      - pattern-not: template.New(...).Parse("...")
+    message: "A Go template is parsed from non-literal content. Trace the template source for server-side template injection."
+    severity: ERROR
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-94"
+      references:
+        - "https://pkg.go.dev/html/template"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-rce-005-dynamic-plugin-open
+    patterns:
+      - pattern: plugin.Open($PATH)
+      - pattern-not: plugin.Open("...")
+    message: "plugin.Open loads a non-literal shared object path. Validate the path and ensure attackers cannot write the plugin file."
+    severity: ERROR
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-829"
+      references:
+        - "https://pkg.go.dev/plugin"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2

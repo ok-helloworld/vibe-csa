@@ -79,7 +79,7 @@ def _step_has_request(step: dict) -> bool:
 
 def _step_has_response(step: dict) -> bool:
     resp = step.get("response") or {}
-    return "status" in resp and "body" in resp
+    return "status_code" in resp and "body" in resp
 
 
 def _vuln_type_key(finding: dict) -> str:
@@ -232,7 +232,7 @@ def consistency_checks(data: dict, mode: str = "final") -> tuple[list[str], list
                         errors.append(f"{vid}: poc.steps[{j}] missing request.method/url")
                     if not _step_has_response(s):
                         errors.append(
-                            f"{vid}: poc.result=success but poc.steps[{j}] missing response.status/body "
+                            f"{vid}: poc.result=success but poc.steps[{j}] missing response.status_code/body "
                             "(must be written by verify_vuln.py)"
                         )
 

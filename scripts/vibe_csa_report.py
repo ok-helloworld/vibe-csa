@@ -205,7 +205,7 @@ def format_http_request(request_data):
 def format_http_response(response_data):
     """格式化 HTTP 响应为可直接复制的完整文本"""
     lines = []
-    status = response_data.get('status', 200)
+    status = response_data.get('status_code', 200)
     status_text = {
         200: 'OK', 201: 'Created', 204: 'No Content',
         301: 'Moved Permanently', 302: 'Found', 304: 'Not Modified',

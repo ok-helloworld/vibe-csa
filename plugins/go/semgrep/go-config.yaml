@@ -1,0 +1,84 @@
+rules:
+  - id: go-config-001-insecure-skip-verify
+    pattern-either:
+      - pattern: tls.Config{..., InsecureSkipVerify: true, ...}
+      - pattern: |
+          $CFG.InsecureSkipVerify = true
+    message: "TLS certificate verification is disabled. Configure trusted roots and verify the expected server name."
+    severity: ERROR
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-295"
+      references:
+        - "https://pkg.go.dev/crypto/tls#Config"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-config-002-gin-debug-mode
+    pattern: gin.SetMode(gin.DebugMode)
+    message: "Gin debug mode is explicitly enabled. Use release mode in production and avoid exposing diagnostic details."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-489"
+      references:
+        - "https://pkg.go.dev/github.com/gin-gonic/gin"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-config-003-pprof-exposed
+    pattern-regex: '["\x27]net/http/pprof["\x27]'
+    message: "net/http/pprof is imported. Confirm profiling endpoints are disabled or bound to an authenticated internal listener."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-215"
+      references:
+        - "https://pkg.go.dev/net/http/pprof"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-config-004-cors-all-origins
+    pattern-either:
+      - pattern: cors.Config{..., AllowAllOrigins: true, ...}
+      - pattern: cors.Config{..., AllowOrigins: "*", ...}
+      - pattern: cors.Config{..., AllowedOrigins: []string{"*"}, ...}
+    message: "CORS allows every origin. Restrict origins, especially when credentials or sensitive responses are involved."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-942"
+      references:
+        - "https://owasp.org/www-community/attacks/CORS_OriginHeaderScrutiny"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-config-005-hardcoded-credential
+    pattern-regex: '(?i)\b(api[_-]?key|client[_-]?secret|secret[_-]?key|password|access[_-]?token)\b\s*(?::=|=)\s*["\x27][^"\x27]{8,}["\x27]'
+    message: "A credential-like value appears hardcoded. Move secrets to a secret manager and rotate exposed values."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-798"
+      references:
+        - "https://cwe.mitre.org/data/definitions/798.html"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-config-006-grpc-reflection
+    pattern: reflection.Register($SERVER)
+    message: "gRPC reflection is enabled. Confirm it is not exposed to untrusted networks without authentication."
+    severity: INFO
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-200"
+      references:
+        - "https://pkg.go.dev/google.golang.org/grpc/reflection"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2

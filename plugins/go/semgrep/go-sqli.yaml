@@ -1,0 +1,100 @@
+rules:
+  - id: go-sqli-001-database-sprintf
+    pattern-either:
+      - pattern: $DB.Query(fmt.Sprintf($QUERY, ...), ...)
+      - pattern: $DB.QueryContext($CTX, fmt.Sprintf($QUERY, ...), ...)
+      - pattern: $DB.QueryRow(fmt.Sprintf($QUERY, ...), ...)
+      - pattern: $DB.QueryRowContext($CTX, fmt.Sprintf($QUERY, ...), ...)
+      - pattern: $DB.Exec(fmt.Sprintf($QUERY, ...), ...)
+      - pattern: $DB.ExecContext($CTX, fmt.Sprintf($QUERY, ...), ...)
+    message: "SQL is built with fmt.Sprintf before execution. Use driver placeholders for values and an allowlist for identifiers."
+    severity: ERROR
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      references:
+        - "https://go.dev/doc/database/sql-injection"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-sqli-002-database-concatenation
+    pattern-either:
+      - pattern: $DB.Query($QUERY + $INPUT, ...)
+      - pattern: $DB.QueryContext($CTX, $QUERY + $INPUT, ...)
+      - pattern: $DB.QueryRow($QUERY + $INPUT, ...)
+      - pattern: $DB.Exec($QUERY + $INPUT, ...)
+      - pattern: $DB.ExecContext($CTX, $QUERY + $INPUT, ...)
+    message: "A concatenated SQL string is executed. Trace the concatenated value for SQL injection."
+    severity: ERROR
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      references:
+        - "https://go.dev/doc/database/sql-injection"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-sqli-003-gorm-raw-sprintf
+    pattern-either:
+      - pattern: $DB.Raw(fmt.Sprintf($QUERY, ...), ...)
+      - pattern: $DB.Exec(fmt.Sprintf($QUERY, ...), ...)
+      - pattern: $DB.Where(fmt.Sprintf($QUERY, ...), ...)
+    message: "GORM receives SQL built with fmt.Sprintf. Use placeholders and fixed clause mappings."
+    severity: ERROR
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      references:
+        - "https://gorm.io/docs/security.html"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-sqli-004-gorm-raw-concatenation
+    pattern-either:
+      - pattern: $DB.Raw($QUERY + $INPUT, ...)
+      - pattern: $DB.Exec($QUERY + $INPUT, ...)
+      - pattern: $DB.Where($QUERY + $INPUT, ...)
+    message: "GORM receives a concatenated SQL clause. Confirm whether external input reaches the expression."
+    severity: ERROR
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      references:
+        - "https://gorm.io/docs/security.html"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-sqli-005-gorm-dynamic-order
+    patterns:
+      - pattern: $DB.Order($ORDER)
+      - pattern-not: $DB.Order("...")
+    message: "GORM Order receives a dynamic expression. Column and direction values require a strict allowlist."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      references:
+        - "https://gorm.io/docs/security.html"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-sqli-006-sqlx-dynamic-query
+    pattern-either:
+      - pattern: $DB.Select($DST, fmt.Sprintf($QUERY, ...), ...)
+      - pattern: $DB.Get($DST, fmt.Sprintf($QUERY, ...), ...)
+      - pattern: $DB.Queryx(fmt.Sprintf($QUERY, ...), ...)
+    message: "sqlx executes SQL built with fmt.Sprintf. Replace formatting with placeholders or fixed identifier mappings."
+    severity: ERROR
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-89"
+      references:
+        - "https://jmoiron.github.io/sqlx/"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2

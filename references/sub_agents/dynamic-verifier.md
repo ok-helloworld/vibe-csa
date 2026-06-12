@@ -208,7 +208,7 @@ step 3: 传入命令并在响应中看到 uid=... 或等价输出
 - `dynamic_verification.runtime_notes`：记录认证条件、环境限制、绕过点和异常说明。
 
 其它要求：
-- `poc.steps[].response.status` 使用整数状态码，字段名是 `status`，不是 `status_code`
+- `poc.steps[].response.status_code` 使用整数状态码
 - 成功写回时，`poc.result`、`status`、`finding_class` 必须相互一致；如保留 `x_finding_class`，其值也必须与 `finding_class` 一致
 - 成功验证后，`evidence_level` 不得保留 `L0`，应按实际证据强度提升到 `L2` 或 `L3`
 - 如果验证失败，还应补全 `poc.failure_log[]`（结构化字典/对象，不能只写纯字符串）
@@ -234,7 +234,7 @@ step 3: 传入命令并在响应中看到 uid=... 或等价输出
 | `URL: http://...` | `poc.steps[].request.url` | 完整 URL 字符串 |
 | `Headers (N total):` + 各行 `Key: Value` | `poc.steps[].request.headers` | JSON dict，例如 `{"Key":"Val",...}` |
 | `Body: N bytes (mode, charset=...)` | `poc.steps[].request.body` | 摘要字符串；若超过 4096 字节，可保留关键证据片段 |
-| `HTTP/1.1 NNN ...` | `poc.steps[].response.status` | 取 `NNN` 整数 |
+| `HTTP/1.1 NNN ...` | `poc.steps[].response.status_code` | 取 `NNN` 整数 |
 | 响应头各行 `Key: Value` | `poc.steps[].response.headers` | JSON dict |
 | `[body] matched N/M lines` 匹配行内容 | `poc.steps[].response._evidence_match[].snippet` | 原文复制匹配行 |
 | 命中签名的证据类型 | `poc.steps[].response._evidence_match[].type` | 如 `upload-marker`、`cmd-exec`、`sqli` |

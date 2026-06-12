@@ -1,0 +1,80 @@
+rules:
+  - id: go-crypto-001-md5
+    pattern-either:
+      - pattern: md5.New()
+      - pattern: md5.Sum($DATA)
+    message: "MD5 is cryptographically broken. Do not use it for passwords, signatures, tokens, or integrity against attackers."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-327"
+      references:
+        - "https://pkg.go.dev/crypto/md5"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-crypto-002-sha1
+    pattern-either:
+      - pattern: sha1.New()
+      - pattern: sha1.Sum($DATA)
+    message: "SHA-1 is unsuitable for collision-resistant security uses. Prefer SHA-256 or a purpose-built password KDF."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-327"
+      references:
+        - "https://pkg.go.dev/crypto/sha1"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-crypto-003-des
+    pattern-either:
+      - pattern: des.NewCipher($KEY)
+      - pattern: des.NewTripleDESCipher($KEY)
+    message: "DES or 3DES is obsolete. Use an authenticated modern cipher such as AES-GCM or ChaCha20-Poly1305."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-327"
+      references:
+        - "https://pkg.go.dev/crypto/des"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-crypto-004-weak-tls-minimum
+    pattern-either:
+      - pattern: tls.Config{..., MinVersion: tls.VersionTLS10, ...}
+      - pattern: tls.Config{..., MinVersion: tls.VersionTLS11, ...}
+      - pattern: |
+          $CFG.MinVersion = tls.VersionTLS10
+      - pattern: |
+          $CFG.MinVersion = tls.VersionTLS11
+    message: "TLS 1.0 or 1.1 is enabled as the minimum. Require TLS 1.2 or newer."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-326"
+      references:
+        - "https://pkg.go.dev/crypto/tls"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-crypto-005-math-rand-token-candidate
+    pattern-either:
+      - pattern: rand.Int()
+      - pattern: rand.Intn(...)
+      - pattern: rand.Read(...)
+    message: "math/rand may be predictable. Confirm it is not used for tokens, passwords, reset codes, nonces, or other security values."
+    severity: INFO
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-338"
+      references:
+        - "https://pkg.go.dev/crypto/rand"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2

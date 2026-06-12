@@ -48,6 +48,7 @@ workDir/agent-results/agent-static-code-map.json
 - Java/Kotlin: `{SKILL_ROOT}/plugins/java/`
 - Python: `{SKILL_ROOT}/plugins/python/`
 - PHP: `{SKILL_ROOT}/plugins/php/`
+- Go: `{SKILL_ROOT}/plugins/go/`
 - 其他: `{SKILL_ROOT}/plugins/_generic/`
 
 优先参考：

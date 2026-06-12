@@ -674,13 +674,13 @@
         },
         "response": {
           "type": "object",
-          "required": ["status", "body"],
+          "required": ["status_code", "body"],
           "additionalProperties": false,
           "patternProperties": {
             "^_": {}
           },
           "properties": {
-            "status": { "type": "integer" },
+            "status_code": { "type": "integer" },
             "headers": { "type": "object" },
             "raw": { "type": "string" },
             "body": { "type": "string" },

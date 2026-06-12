@@ -299,7 +299,7 @@ def _jsonpath_lite(obj: Any, path: str) -> Any:
 
 
 def extract_from_response(rules: dict[str, str], resp_data: dict[str, Any]) -> dict[str, Any]:
-    """Apply extract rules to a response dict ({status, headers, body, ...})."""
+    """Apply extract rules to a response dict ({status_code, headers, body, ...})."""
     out: dict[str, Any] = {}
     body_text = resp_data.get("body", "")
     headers = {k.lower(): v for k, v in (resp_data.get("headers") or {}).items()}
@@ -555,7 +555,7 @@ def response_to_dict(resp: requests.Response, redirect_chain: list[dict],
     truncated = full_len > len(body)
 
     out: dict[str, Any] = {
-        "status": resp.status_code,
+        "status_code": resp.status_code,
         "headers": dict(resp.headers),
         "raw": response_raw(resp, body),
         "body": body,
@@ -948,7 +948,7 @@ def process_one_step(finding: dict, target: str, timeout: int,
             # Final timeout — record but do NOT mark whole poc as timeout yet;
             # let caller decide based on retry-on-error budget
             step["response"] = {
-                "status": 0, "headers": {}, "body": f"Request timed out after {timeout}s",
+                "status_code": 0, "headers": {}, "body": f"Request timed out after {timeout}s",
                 "_meta": {"error": "timeout", "attempts": attempt + 1},
             }
             poc["result"] = "timeout"
@@ -970,7 +970,7 @@ def process_one_step(finding: dict, target: str, timeout: int,
                 time.sleep(wait)
                 continue
             step["response"] = {
-                "status": 0, "headers": {}, "body": f"Connection error: {e}",
+                "status_code": 0, "headers": {}, "body": f"Connection error: {e}",
                 "_meta": {"error": "connection", "attempts": attempt + 1},
             }
             poc["result"] = "failure"
@@ -985,7 +985,7 @@ def process_one_step(finding: dict, target: str, timeout: int,
         except Exception as e:
             # non-retryable error
             step["response"] = {
-                "status": 0, "headers": {}, "body": f"Error: {type(e).__name__}: {e}",
+                "status_code": 0, "headers": {}, "body": f"Error: {type(e).__name__}: {e}",
                 "_meta": {"error": "exception"},
             }
             poc["result"] = "failure"
@@ -1466,7 +1466,7 @@ def main() -> None:
             progress_count += 1
             try:
                 last_idx = max(i for i, s in enumerate(poc["steps"]) if (s.get("response") or {}).get("body") is not None)
-                status = poc["steps"][last_idx]["response"].get("status")
+                status = poc["steps"][last_idx]["response"].get("status_code")
                 print(f"[{vid}] step {last_idx + 1} sent — status={status}")
                 print(f"[{vid}] LLM must analyze response and construct next step (or set result)")
             except ValueError:

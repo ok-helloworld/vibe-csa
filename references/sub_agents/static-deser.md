@@ -112,6 +112,7 @@ class_load
 - Java/Kotlin: `{SKILL_ROOT}/plugins/java/`
 - Python: `{SKILL_ROOT}/plugins/python/`
 - PHP: `{SKILL_ROOT}/plugins/php/`
+- Go: `{SKILL_ROOT}/plugins/go/`
 - 其他: `{SKILL_ROOT}/plugins/_generic/`
 
 插件资料可用于框架识别、危险操作定位和检索辅助，但不是本 Agent 的强制流程。

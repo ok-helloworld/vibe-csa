@@ -1,0 +1,96 @@
+rules:
+  - id: go-misc-001-template-safe-type
+    pattern-either:
+      - patterns:
+          - pattern: template.HTML($INPUT)
+          - pattern-not: template.HTML("...")
+      - patterns:
+          - pattern: template.JS($INPUT)
+          - pattern-not: template.JS("...")
+      - patterns:
+          - pattern: template.URL($INPUT)
+          - pattern-not: template.URL("...")
+      - patterns:
+          - pattern: template.HTMLAttr($INPUT)
+          - pattern-not: template.HTMLAttr("...")
+    message: "A dynamic value is cast to a trusted template type, bypassing contextual escaping. Confirm the value is not attacker controlled."
+    severity: ERROR
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-79"
+      references:
+        - "https://pkg.go.dev/html/template#HTML"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-misc-002-open-redirect
+    pattern-either:
+      - patterns:
+          - pattern: http.Redirect($W, $R, $URL, $CODE)
+          - pattern-not: http.Redirect($W, $R, "...", $CODE)
+      - patterns:
+          - pattern: $CTX.Redirect($CODE, $URL)
+          - pattern-not: $CTX.Redirect($CODE, "...")
+      - patterns:
+          - pattern: $CTX.Redirect($URL, $CODE)
+          - pattern-not: $CTX.Redirect("...", $CODE)
+    message: "A redirect target is dynamic. Restrict redirects to relative paths or an allowlist of trusted hosts."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-601"
+      references:
+        - "https://owasp.org/www-community/attacks/Unvalidated_Redirects_and_Forwards_Cheat_Sheet"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-misc-003-dynamic-header
+    pattern-either:
+      - patterns:
+          - pattern: $W.Header().Set($NAME, $VALUE)
+          - pattern-not: $W.Header().Set($NAME, "...")
+      - patterns:
+          - pattern: $W.Header().Add($NAME, $VALUE)
+          - pattern-not: $W.Header().Add($NAME, "...")
+    message: "A response header contains a dynamic value. Confirm CR/LF rejection and validate security-sensitive headers."
+    severity: INFO
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-113"
+      references:
+        - "https://owasp.org/www-community/attacks/HTTP_Response_Splitting"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-misc-004-jwt-without-claims-validation
+    pattern-either:
+      - pattern: jwt.WithoutClaimsValidation()
+      - pattern: jwt.NewParser(..., jwt.WithoutClaimsValidation(), ...)
+    message: "JWT claims validation is disabled. Validate expiry, not-before, issuer, audience, signature, and allowed algorithms."
+    severity: ERROR
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-287"
+      references:
+        - "https://pkg.go.dev/github.com/golang-jwt/jwt/v5"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-misc-005-insecure-cookie
+    pattern-either:
+      - pattern: http.Cookie{..., Secure: false, ...}
+      - pattern: http.Cookie{..., HttpOnly: false, ...}
+    message: "A cookie explicitly disables a security attribute. Review Secure, HttpOnly, SameSite, Path, Domain, and lifetime."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-614"
+      references:
+        - "https://pkg.go.dev/net/http#Cookie"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2

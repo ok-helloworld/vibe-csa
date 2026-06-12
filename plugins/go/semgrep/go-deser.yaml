@@ -1,0 +1,68 @@
+rules:
+  - id: go-deser-001-gob-decode
+    pattern-either:
+      - pattern: gob.NewDecoder($SRC).Decode($DST)
+      - pattern: |
+          $DEC := gob.NewDecoder($SRC)
+          ...
+          $DEC.Decode($DST)
+      - pattern: |
+          $DEC = gob.NewDecoder($SRC)
+          ...
+          $DEC.Decode($DST)
+    message: "gob decodes structured data from a source. Confirm the source is trusted and bound message size and object complexity."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      references:
+        - "https://pkg.go.dev/encoding/gob"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-deser-002-yaml-unmarshal
+    pattern-either:
+      - pattern: yaml.Unmarshal($DATA, $DST)
+      - pattern: yaml.UnmarshalStrict($DATA, $DST)
+    message: "YAML data is decoded. If externally controlled, inspect destination fields, aliases, size limits, and downstream dangerous consumers."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-502"
+      references:
+        - "https://pkg.go.dev/gopkg.in/yaml.v3"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-deser-003-mapstructure-weak-decode
+    pattern-either:
+      - pattern: mapstructure.WeakDecode($INPUT, $OUTPUT)
+      - pattern: mapstructure.WeakDecodeMetadata($INPUT, $OUTPUT, $META)
+    message: "Weakly typed decoding can coerce attacker-controlled values. Use a dedicated DTO and validate sensitive fields."
+    severity: WARNING
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-915"
+      references:
+        - "https://pkg.go.dev/github.com/mitchellh/mapstructure"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2
+
+  - id: go-deser-004-direct-bind-persistent-model
+    pattern-either:
+      - pattern: $CTX.ShouldBind(&$MODEL)
+      - pattern: $CTX.Bind(&$MODEL)
+      - pattern: $CTX.BodyParser(&$MODEL)
+    message: "A framework binder populates a struct. Confirm this is a request DTO rather than a persistent model with sensitive writable fields."
+    severity: INFO
+    languages: [go]
+    metadata:
+      category: security
+      cwe: "CWE-915"
+      references:
+        - "https://owasp.org/API-Security/editions/2023/en/0xa3-broken-object-property-level-authorization/"
+      vibe-csa-plugin: go
+      vibe-csa-phase: 2

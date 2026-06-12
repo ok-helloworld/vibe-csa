@@ -104,7 +104,7 @@
           "raw": ""
         },
         "response": {
-          "status": 200,
+          "status_code": 200,
           "headers": {
             "Date": "Mon, 08 Jun 2026 10:11:12 GMT",
             "Server": "Apache/2.4.54 (Debian)",
@@ -145,7 +145,7 @@
           "raw": ""
         },
         "response": {
-          "status": 200,
+          "status_code": 200,
           "headers": {
             "Date": "Mon, 08 Jun 2026 10:11:15 GMT",
             "Server": "Apache/2.4.54 (Debian)",
@@ -233,7 +233,7 @@
 | `poc.steps[].request.body` | 建议 | 请求体摘要；很长时保留关键证据即可 |
 | `poc.steps[].request.cookies` | 建议 | 结构化 cookies |
 | `poc.steps[].request.raw` | 可选 | 不强制，但可在必要时保留 |
-| `poc.steps[].response.status` | 必填 | 响应状态码，字段名是 `status`，不是 `status_code` |
+| `poc.steps[].response.status_code` | 必填 | 响应状态码 |
 | `poc.steps[].response.headers` | 必填 | 响应头 |
 | `poc.steps[].response.body` | 必填 | 响应体关键内容 |
 | `poc.steps[].response.body_truncated` | 建议 | 标明是否截断 |

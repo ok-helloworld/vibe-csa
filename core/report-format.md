@@ -80,7 +80,7 @@ root
 | `poc.steps[].request.body` | object | ❌ | 请求体 |
 | `poc.steps[].request.cookies` | object | ❌ | Cookie |
 | `poc.steps[].request.raw` | string | 动态阶段必填 | 原始 HTTP 请求报文 |
-| `poc.steps[].response.status` | number | ✅ | 响应状态码 |
+| `poc.steps[].response.status_code` | number | ✅ | 响应状态码 |
 | `poc.steps[].response.headers` | object | ❌ | 响应头 |
 | `poc.steps[].response.raw` | string | 动态阶段必填 | 原始 HTTP 响应报文 |
 | `poc.steps[].response.body` | string | ✅ | 响应体关键片段（截断至 4096 字符） |
@@ -186,7 +186,7 @@ root
               "params": { "name": "' OR '1'='1" }
             },
             "response": {
-              "status": 200,
+              "status_code": 200,
               "body": "[{\"id\":1,\"name\":\"admin\",\"email\":\"admin@example.com\"}]"
             }
           }
@@ -236,7 +236,7 @@ root
               "body": { "content": "<script>alert(1)</script>" }
             },
             "response": {
-              "status": 201,
+              "status_code": 201,
               "body": "{\"id\": 88, \"content\": \"<script>alert(1)</script>\"}"
             }
           },
@@ -247,7 +247,7 @@ root
               "url": "https://staging.example.com/comments/88"
             },
             "response": {
-              "status": 200,
+              "status_code": 200,
               "body": "<html><body>...<div id='comment-88'><script>alert(1)</script></div>...</body></html>"
             }
           }
@@ -293,7 +293,7 @@ root
               "params": {}
             },
             "response": {
-              "status": 200,
+              "status_code": 200,
               "body": "{\"order_id\":10086,\"user_id\":999,\"amount\":3200,\"items\":[...]}"
             }
           }

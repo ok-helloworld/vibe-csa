@@ -1,4 +1,5 @@
 import argparse
+import inspect
 import json
 import os
 import re
@@ -63,12 +64,70 @@ def parse_headers(raw: str) -> List[Tuple[str, str]]:
                 headers.append((key.strip(), value.strip()))
         if headers:
             return headers
-    for line in raw.replace(";", "\n").splitlines():
+
+    # PowerShell may strip quotes from JSON-like arguments, turning
+    # {"Content-Type":"application/json"} into {Content-Type:application/json}.
+    text = raw[1:-1].strip() if raw.startswith("{") and raw.endswith("}") else raw
+    parts = re.split(
+        r"[;\r\n]+|,\s*(?=[!#$%&'*+\-.^_`|~0-9A-Za-z]+\s*:)",
+        text,
+    )
+    for line in parts:
         if ":" not in line:
             continue
         key, value = line.split(":", 1)
-        headers.append((key.strip(), value.strip()))
+        key = key.strip().strip("\"'")
+        value = value.strip().strip("\"'")
+        if key:
+            headers.append((key, value))
     return headers
+
+
+def parse_form_fields(raw: str) -> List[Tuple[str, str]]:
+    if not raw or not raw.strip():
+        raise ValueError("--form requires a JSON object")
+
+    text = raw.strip()
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        parsed = None
+
+    if parsed is None and text.startswith("{") and text.endswith("}"):
+        # PowerShell may strip quotes from JSON-like native command arguments.
+        parsed = {}
+        inner = text[1:-1].strip()
+        parts = re.split(
+            r",\s*(?=[!#$%&'*+\-.^_`|~0-9A-Za-z]+\s*:)",
+            inner,
+        )
+        for part in parts:
+            if ":" not in part:
+                raise ValueError("--form must be a JSON object")
+            key, value = part.split(":", 1)
+            key = key.strip().strip("\"'")
+            value = value.strip().strip("\"'")
+            if not key:
+                raise ValueError("--form contains an empty field name")
+            parsed[key] = value
+
+    if not isinstance(parsed, dict):
+        raise ValueError("--form must be a JSON object")
+
+    fields: List[Tuple[str, str]] = []
+    for key, value in parsed.items():
+        values = value if isinstance(value, list) else [value]
+        for item in values:
+            if isinstance(item, (dict, list)):
+                raise ValueError(f"--form field {key!r} must contain scalar values")
+            if item is None:
+                item_text = ""
+            elif isinstance(item, bool):
+                item_text = "true" if item else "false"
+            else:
+                item_text = str(item)
+            fields.append((str(key), item_text))
+    return fields
 
 
 def parse_cookies(raw: str) -> Dict[str, str]:
@@ -277,7 +336,13 @@ def decode_body_bytes(data: bytes, headers: httpx.Headers, user_encoding: str = 
         return data.decode("utf-8", errors="replace"), "utf-8", "fallback"
 
 
-def prepare_body(data: str, headers: httpx.Headers, debug: bool = False):
+def prepare_body(
+    data: str,
+    headers: httpx.Headers,
+    debug: bool = False,
+    data_file: str = "",
+    form: str = "",
+):
     meta = {
         "source": "inline",
         "mode": "none",
@@ -285,6 +350,30 @@ def prepare_body(data: str, headers: httpx.Headers, debug: bool = False):
         "charset": None,
         "encoded": False,
     }
+    if form:
+        content_type = headers.get("Content-Type")
+        if content_type and "application/x-www-form-urlencoded" not in content_type.lower():
+            raise ValueError("--form requires Content-Type: application/x-www-form-urlencoded")
+        fields = parse_form_fields(form)
+        processed = urllib.parse.urlencode(fields, doseq=True)
+        headers["Content-Type"] = "application/x-www-form-urlencoded; charset=utf-8"
+        payload = processed.encode("utf-8")
+        meta["source"] = "form"
+        meta["mode"] = "form-urlencoded"
+        meta["charset"] = "utf-8"
+        meta["encoded"] = True
+        meta["length"] = len(payload)
+        return payload, meta
+    if data_file:
+        path = os.path.expanduser(data_file)
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"Body file not found: {path}")
+        with open(path, "rb") as fh:
+            payload = fh.read()
+        meta["source"] = path
+        meta["mode"] = "binary"
+        meta["length"] = len(payload)
+        return payload, meta
     if not data:
         return None, meta
     if data.startswith("@"):
@@ -444,6 +533,16 @@ def compile_response_filter(pattern: str, ignore_case: bool):
     except re.error as exc:
         print(f"Invalid response_filter regex: {exc}", file=sys.stderr)
         sys.exit(2)
+
+
+def load_response_filter(pattern: str, pattern_file: str) -> str:
+    if not pattern_file:
+        return (pattern or "").strip()
+    path = os.path.expanduser(pattern_file)
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"Response filter file not found: {path}")
+    with open(path, "r", encoding="utf-8-sig") as fh:
+        return fh.read().strip()
 
 
 def truncate_utf8(text: str, max_bytes: int) -> Tuple[str, bool]:
@@ -663,7 +762,10 @@ def main():
     parser = argparse.ArgumentParser(description="Pure Python HTTP testing helper powered by httpx")
     parser.add_argument("--url", required=True)
     parser.add_argument("--method", default="GET")
-    parser.add_argument("--data", default="")
+    body_group = parser.add_mutually_exclusive_group()
+    body_group.add_argument("--data", default="")
+    body_group.add_argument("--data-file", dest="data_file", default="")
+    body_group.add_argument("--form", default="")
     parser.add_argument("--headers", default="", type=str)
     parser.add_argument("--cookies", default="")
     parser.add_argument("--user-agent", dest="user_agent", default="")
@@ -681,11 +783,15 @@ def main():
     parser.add_argument("--allow-insecure", dest="allow_insecure", action="store_true")
     parser.add_argument("--verbose-output", dest="verbose_output", action="store_true")
     parser.add_argument("--show-command", dest="show_command", action="store_true")
+    parser.add_argument("--no-show-command", dest="show_command", action="store_false")
     parser.add_argument("--show-summary", dest="show_summary", action="store_true")
+    parser.add_argument("--no-show-summary", dest="show_summary", action="store_false")
     parser.add_argument("--debug", dest="debug", action="store_true")
     parser.add_argument("--response-encoding", dest="response_encoding", default="")
     parser.add_argument("--download", dest="download", default="")
-    parser.add_argument("--response-filter", dest="response_filter", default="")
+    response_filter_group = parser.add_mutually_exclusive_group()
+    response_filter_group.add_argument("--response-filter", dest="response_filter", default="")
+    response_filter_group.add_argument("--response-filter-file", dest="response_filter_file", default="")
     parser.add_argument("--response-filter-mode", dest="response_filter_mode", default="line")
     parser.add_argument("--response-filter-invert", dest="response_filter_invert", action="store_true")
     parser.add_argument("--no-response-filter-invert", dest="response_filter_invert", action="store_false")
@@ -696,20 +802,24 @@ def main():
     parser.add_argument("--response-preview-lines", dest="response_preview_lines", type=int, default=5)
     parser.add_argument("--response-context-lines", dest="response_context_lines", type=int, default=0)
     parser.set_defaults(
-        include_headers=False,
+        include_headers=True,
         auto_encode_url=False,
         follow_redirects=False,
         allow_insecure=False,
         verbose_output=False,
-        show_command=False,
-        show_summary=False,
+        show_command=True,
+        show_summary=True,
         debug=False,
         response_filter_invert=False,
         response_filter_ignore_case=False,
     )
     args = parser.parse_args()
 
-    response_filter = (args.response_filter or "").strip()
+    try:
+        response_filter = load_response_filter(args.response_filter, args.response_filter_file)
+    except FileNotFoundError as exc:
+        print(f"Response filter preparation failed: {exc}", file=sys.stderr)
+        sys.exit(1)
     response_max_lines = max(0, args.response_max_lines or 0)
     response_max_bytes = max(0, args.response_max_bytes or 0)
     response_preview_lines = max(0, args.response_preview_lines if args.response_preview_lines is not None else 5)
@@ -731,22 +841,7 @@ def main():
     prepared_url = smart_encode_url(args.url) if args.auto_encode_url else args.url
     method = (args.method or "GET").upper()
 
-    headers_list = []
-    if args.headers:
-        headers_str = args.headers.strip()
-        if headers_str.startswith("{") or headers_str.startswith("["):
-            try:
-                parsed = json.loads(headers_str)
-                if isinstance(parsed, dict):
-                    headers_list = [(str(k).strip(), str(v).strip()) for k, v in parsed.items()]
-                elif isinstance(parsed, list):
-                    headers_list = parse_headers(headers_str)
-                else:
-                    headers_list = parse_headers(headers_str)
-            except (json.JSONDecodeError, ValueError):
-                headers_list = parse_headers(headers_str)
-        else:
-            headers_list = parse_headers(headers_str)
+    headers_list = parse_headers(args.headers)
     headers = httpx.Headers(headers_list)
     if args.user_agent:
         headers["User-Agent"] = args.user_agent
@@ -760,8 +855,14 @@ def main():
         "encoded": False,
     }
     try:
-        body_bytes, body_meta = prepare_body(args.data, headers, args.debug)
-    except FileNotFoundError as exc:
+        body_bytes, body_meta = prepare_body(
+            args.data,
+            headers,
+            args.debug,
+            args.data_file,
+            args.form,
+        )
+    except (FileNotFoundError, ValueError) as exc:
         print(f"Body preparation failed: {exc}", file=sys.stderr)
         sys.exit(1)
 
@@ -787,7 +888,8 @@ def main():
         "cookies": cookie_jar,
     }
     if args.proxy:
-        client_kwargs["proxies"] = args.proxy
+        proxy_arg = "proxy" if "proxy" in inspect.signature(httpx.Client).parameters else "proxies"
+        client_kwargs[proxy_arg] = args.proxy
     if "http2" in additional_options:
         client_kwargs["http2"] = str_to_bool(additional_options["http2"])
     if "cert" in additional_options:
@@ -928,7 +1030,7 @@ def main():
                         if aggregate is not None:
                             aggregate["wall_time"].append(total_elapsed)
                     else:
-                        print("Summary disabled (--show-summary=false).")
+                        print("Summary disabled (--no-show-summary).")
                         print(f"Wall Time (client): {total_elapsed:.6f}s")
 
                     print(f"Encoding Used: {used_encoding} ({encoding_source})")

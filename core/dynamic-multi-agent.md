@@ -83,8 +83,10 @@ python {SKILL_ROOT}/scripts/http_test.py --url "<URL>" --method <METHOD> \
 - 每发一个请求都必须带 `--show-command --show-summary --include-headers`
 - Cookie 认证使用 `--cookies "key1=val1; key2=val2"`
 - JWT / Bearer Token 使用 `--headers '{"Authorization":"Bearer ..."}'`
+- 报错型、回显型检测优先使用 `--response-filter` 缩小响应范围并提取关键证据（须参考 `http-test-usage.md` 的“常用证据过滤模板”）
 - 大 HTML 响应必须限制输出行数，优先使用 `--response-max-lines 80` 或更小
-- 报错型、回显型、差异型验证优先使用 `--response-filter` 提取关键证据
+- HTML 表单入口应先复现真实提交格式并建立有效基线，再测试与目标 Sink 匹配的原始 payload；仅按实际差异线索定向测试编码或格式变体
+- 表单字段优先使用 `--form`；需精确控制原始文本请求体时使用 `--data`；请求体较长、包含二进制/换行，或易受 shell 转义影响时使用 `--data-file`。仅在目标本身涉及 URL 参数、表单编码或编码/解析差异时，再显式处理编码
 - 禁止使用 `curl` 或其他工具替代
 
 ### OOB / DNS 回连工具
@@ -136,7 +138,7 @@ python {SKILL_ROOT}/scripts/deserialization_payload.py \
 ```
 
 - 优先使用 `URLDNS` 等低影响 OOB 探测。
-- 生成 payload 后仍必须通过 `http_test.py --data @payload.bin` 发送，禁止把“成功生成 payload”当作漏洞成立证据。
+- 生成 payload 后仍必须通过 `http_test.py --data-file payload.bin` 发送，禁止把“成功生成 payload”当作漏洞成立证据。
 - 必须结合目标依赖、反序列化格式和输入编码选择 gadget 与 `raw|base64|hex|url` 输出格式，不得机械遍历全部 gadget。
 
 ## 漏洞验证执行流程（强制）

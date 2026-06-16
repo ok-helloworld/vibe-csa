@@ -80,7 +80,8 @@ python {SKILL_ROOT}/scripts/http_test.py --url "<URL>" --method <METHOD> \
 
 强制要求：
 
-- 每发一个请求都必须带 `--show-command --show-summary --include-headers`
+- PowerShell 环境下必须参考 `http-test-usage.md` 的 PowerShell 兼容说明；复杂正则优先使用 `--response-filter-file`，复杂请求体优先使用 `--form` 或 `--data-file`，避免受 shell 转义影响
+- 保持默认开启 `--show-command --show-summary --include-headers`，确保输出满足证据回填要求；仅在非取证探测且确无需要时才使用 `--no-*` 关闭
 - Cookie 认证使用 `--cookies "key1=val1; key2=val2"`
 - JWT / Bearer Token 使用 `--headers '{"Authorization":"Bearer ..."}'`
 - 报错型、回显型检测优先使用 `--response-filter` 缩小响应范围并提取关键证据（须参考 `http-test-usage.md` 的“常用证据过滤模板”）

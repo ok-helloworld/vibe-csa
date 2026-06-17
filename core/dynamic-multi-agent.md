@@ -80,14 +80,14 @@ python {SKILL_ROOT}/scripts/http_test.py --url "<URL>" --method <METHOD> \
 
 强制要求：
 
-- PowerShell 环境下必须参考 `http-test-usage.md` 的 PowerShell 兼容说明；复杂正则优先使用 `--response-filter-file`，复杂请求体优先使用 `--form` 或 `--data-file`，避免受 shell 转义影响
+- PowerShell 环境下必须参考 `http-test-usage.md` 的 PowerShell 兼容说明；复杂正则优先使用 `--response-filter-file`，避免受 shell 转义影响
 - 保持默认开启 `--show-command --show-summary --include-headers`，确保输出满足证据回填要求；仅在非取证探测且确无需要时才使用 `--no-*` 关闭
-- Cookie 认证使用 `--cookies "key1=val1; key2=val2"`
-- JWT / Bearer Token 使用 `--headers '{"Authorization":"Bearer ..."}'`
-- 报错型、回显型检测优先使用 `--response-filter` 缩小响应范围并提取关键证据（须参考 `http-test-usage.md` 的“常用证据过滤模板”）
 - 大 HTML 响应必须限制输出行数，优先使用 `--response-max-lines 80` 或更小
+- 报错型、回显型检测优先使用 `--response-filter` 缩小响应范围并提取关键证据（须参考 `http-test-usage.md` 的“常用证据过滤模板”）
 - HTML 表单入口应先复现真实提交格式并建立有效基线，再测试与目标 Sink 匹配的原始 payload；仅按实际差异线索定向测试编码或格式变体
 - 表单字段优先使用 `--form`；需精确控制原始文本请求体时使用 `--data`；请求体较长、包含二进制/换行，或易受 shell 转义影响时使用 `--data-file`。仅在目标本身涉及 URL 参数、表单编码或编码/解析差异时，再显式处理编码
+- Cookie 认证使用 `--cookies "key1=val1; key2=val2"`
+- JWT / Bearer Token 使用 `--headers '{"Authorization":"Bearer ..."}'`
 - 禁止使用 `curl` 或其他工具替代
 
 ### OOB / DNS 回连工具

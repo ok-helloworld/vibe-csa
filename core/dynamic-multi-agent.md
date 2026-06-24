@@ -48,7 +48,20 @@ workDir/dynamic-findings/FINDING-001.json
 - 每次只读取当前任务对应的 1 对 finding 文件；完成当前回填后再领取下一对
 - 不继承 Stage 1 对话上下文；当前事实来源只有源码、当前 finding 文件、认证信息和真实响应
 - 默认保持怀疑：没有充分运行时证据时，不得把 finding 升级为 `CONFIRMED`
-- **白帽子职业操守**：允许对测试过程中自己创建的数据、自己上传的文件、自己插入的记录做删除、更新、清理操作，以便验证删除、编辑、恢复、回收类漏洞；禁止对原始业务数据、他人数据、生产数据做破坏性操作。允许上传文件进行文件上传测试。
+
+## 白帽子职业操守（强制遵守）
+
+允许对测试过程中由自己创建的数据、上传的文件和插入的记录进行删除、修改、恢复和清理，以验证相关安全风险。
+禁止破坏原始业务数据、他人数据、生产数据或超出验证目的的业务对象。
+所有测试行为应遵循最小影响原则，在获得有效证据后停止不必要的重复利用和扩散操作。
+
+### SQL 注入测试限制（强制遵守）
+
+- 不得执行 `UPDATE`、`DELETE`、`INSERT` 等写操作语句。
+- 不得执行 `DROP TABLE`、`ALTER`、`TRUNCATE` 等破坏结构或清空数据的语句。
+- 不得尝试文件写入或落地利用，如 `INTO OUTFILE`、`INTO DUMPFILE` 或其他数据库侧写文件能力。
+- 不得尝试创建账号、提升权限、修改密码、修改认证数据或变更访问控制配置。
+- 不得为了验证 SQL 注入而主动构造超大结果集、长时间阻塞查询或其他可能明显影响目标可用性的高负载语句；仅在必要时做最小化、可控的时间差异验证。
 
 ## 输入
 
@@ -80,7 +93,7 @@ python {SKILL_ROOT}/scripts/http_test.py --url "<URL>" --method <METHOD> \
 
 强制要求：
 
-- PowerShell 环境下必须参考 `http-test-usage.md` 的 PowerShell 兼容说明；复杂正则优先使用 `--response-filter-file`，避免受 shell 转义影响
+- PowerShell 环境下必须参考 `http-test-usage.md` 的 PowerShell 兼容说明；复杂正则优先使用 `--response-filter-file`，请求体较长、包含二进制/换行优先使用 `--data-file`，避免受 shell 转义影响
 - 保持默认开启 `--show-command --show-summary --include-headers`，确保输出满足证据回填要求；仅在非取证探测且确无需要时才使用 `--no-*` 关闭
 - 大 HTML 响应必须限制输出行数，优先使用 `--response-max-lines 80` 或更小
 - 报错型、回显型检测优先使用 `--response-filter` 缩小响应范围并提取关键证据（须参考 `http-test-usage.md` 的“常用证据过滤模板”）

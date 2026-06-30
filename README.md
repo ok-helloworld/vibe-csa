@@ -70,7 +70,7 @@ git clone https://gitee.com/ok-helloworld/vibe-csa
 安装依赖：
 
 ```bash
-pip install playwright jsonschema requests urllib3 python-docx matplotlib httpx charset-normalizer chardet
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple playwright jsonschema requests urllib3 python-docx matplotlib httpx charset-normalizer chardet
 playwright install chromium
 ```
 

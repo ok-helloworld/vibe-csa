@@ -1,3 +1,9 @@
+<div align="center">
+
+[中文](./README.md) | [English](./README_EN.md)
+
+</div>
+
 # Vibe CSA
 
 > 当前版本：v1.0.16

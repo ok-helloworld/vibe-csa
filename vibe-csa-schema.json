@@ -184,6 +184,77 @@
         }
       }
     },
+    "exclusions": {
+      "type": "array",
+      "description": "Structured negative conclusions: every rejected candidate together with source-level evidence. An exclusion without evidence does not count as audited.",
+      "items": {
+        "type": "object",
+        "required": ["exclusion_id", "title", "location", "hypothesis", "reason", "evidence", "verdict"],
+        "additionalProperties": false,
+        "properties": {
+          "exclusion_id": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "agent": { "type": "string" },
+          "location": {
+            "type": "object",
+            "required": ["file"],
+            "additionalProperties": false,
+            "properties": {
+              "file": { "type": "string", "minLength": 1 },
+              "line_start": { "type": "integer", "minimum": 0 },
+              "line_end": { "type": "integer", "minimum": 0 },
+              "function": { "type": "string" }
+            }
+          },
+          "hypothesis": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string" },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["file", "line"],
+              "additionalProperties": false,
+              "properties": {
+                "file": { "type": "string", "minLength": 1 },
+                "line": { "type": "integer", "minimum": 1 },
+                "note": { "type": "string" }
+              }
+            }
+          },
+          "verdict": { "type": "string", "enum": ["not_vulnerable", "out_of_scope", "blocked"] }
+        }
+      }
+    },
+    "contradictions": {
+      "type": "array",
+      "description": "Cross-agent conflicts. An open contradiction must be re-verified before reporting.",
+      "items": {
+        "type": "object",
+        "required": ["contradiction_id", "topic", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "contradiction_id": { "type": "string", "minLength": 1 },
+          "topic": { "type": "string", "minLength": 1 },
+          "status": { "type": "string", "enum": ["open", "resolved"] },
+          "finding_ids": { "type": "array", "items": { "type": "string" } },
+          "exclusion_ids": { "type": "array", "items": { "type": "string" } },
+          "resolution": { "type": "string" },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["file", "line"],
+              "additionalProperties": false,
+              "properties": {
+                "file": { "type": "string", "minLength": 1 },
+                "line": { "type": "integer", "minimum": 1 },
+                "note": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
     "findings": {
       "type": "array",
       "items": { "$ref": "#/definitions/finding" }

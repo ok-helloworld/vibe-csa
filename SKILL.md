@@ -177,6 +177,7 @@ workDir/agent-results/agent-static-code-map.json
 - 对同根因的重复变体，Agent 应在“拆分为多条 finding”和“合并为一条带多位置/多入口说明的 finding”之间做显式选择；无论采用哪种方式，都必须确保影响范围被完整表达。
 - 每个 Agent 需要将各自骨架文件的所有字段基于审计结果回填，不得回填虚假数据。
 - `findings` 字段可结合实际漏洞审计结果扩展多条，漏洞标题、中文漏洞类型、bug 分类标签、`vuln_type` 优先从 `references/bug-categories.md` 选择。
+- 每个 Agent 必须输出结构化负向结论：凡是被否证、降级或判为不可达的候选，都要写入 `exclusions[]`，字段含 `location`、`hypothesis`、`reason`、`evidence[]`、`verdict`；只写进说明文字不算完成审计。
 - 每个 Agent 在成功发现漏洞后，必须在生成的 JSON 文件中包含修复建议，包括：
 
   - `fix.language`
@@ -222,6 +223,30 @@ python {SKILL_ROOT}/scripts/dedupe_static_merged.py \
   --input workDir/static-merged.json \
   --output workDir/static-merged.json
 ```
+
+#### Stage 1.3.1 契约门禁（负向结论 / 结论冲突 / 入口覆盖率）
+
+去重只解决"重复"，不解决"不可信"。合并后必须再跑一次契约门禁：
+
+```bash
+python {SKILL_ROOT}/scripts/check_static_contracts.py \
+  --merged workDir/static-merged.json \
+  --agent-dir workDir/agent-results \
+  --code-map workDir/agent-results/agent-static-code-map.json
+```
+
+门禁检查四件事，任一失败即中止，不得进入 Stage 2/3：
+
+1. **负向结论必须有证据**：`exclusions[]` 中每条排除都要带 `evidence[].file + line` 与非空 `reason`。只写"已排除"不写依据的，视为未审计。
+2. **跨 Agent 冲突必须复验**：`contradictions[]` 中 `status="open"` 的项必须复验后改为 `resolved` 并填写 `resolution`；`--allow-open-contradictions` 仅用于草稿。
+3. **finding 证据链完整**：`analysis.source/sink/data_flow/attack_surface/verification_plan` 不得为空。
+4. **入口覆盖率**：`agent-static-code-map.json` 中每个 `entrypoints[].source.file` 必须出现在某个 Agent 的 `reviewed_files` 中，否则该入口视为未审计。
+
+> 覆盖率只认显式凭证。`reviewed_files` 是"读过并给出结论"的记录，不是"被 finding 顺带提到"。
+> 这条门禁专门防止"Agent 数量冒充覆盖率"。
+
+合并脚本已把 `exclusions[]` / `contradictions[]` 作为一等字段输出，并会自动把
+"某 Agent 排除、另一 Agent 立项"的同一代码位置标记为 `open` 冲突。
 
 ### Stage 2 漏洞动态验证（可选）
 
@@ -293,6 +318,9 @@ python {SKILL_ROOT}/scripts/verify_vuln.py --merge workDir/dynamic-findings/*.js
 - 在执行 HTML / Word 报告脚本前，根据用户需求，需要额外对 `workDir/static-merged.json` 或 `workDir/dynamic-verified.json` 中的说明性文本字段的内容进行一次翻译，默认翻译为中文。
 - 建议翻译的字段包括：`analysis.verification_plan.steps.action`、`poc.steps.name`、`dynamic_verification.runtime_notes`、`dynamic_verification.final_evidence.summary`、`dynamic_verification.attempts[].result`、`next_action`、`payload_strategy`、`description`、`impact`、`vuln_type`。
 - 不得翻译路径、参数名、字段名、payload、状态码、URL、请求/响应原始报文、证据原文片段及其它技术性片段；翻译后必须保持原有 JSON 结构、字段名和技术语义不变，并确保文件仍为合法 JSON。
+
+> 报告会渲染 `chains[]`（攻击链）、`exclusions[]`（负向结论）与 `contradictions[]`（跨 Agent 冲突）；
+> 只列出"发现了什么"而不呈现"否证了什么"，不足以支撑审计结论。
 
 #### 如果只执行了 Stage 1 静态审计
 静态-only 报告生成示例，生成html以及word报告

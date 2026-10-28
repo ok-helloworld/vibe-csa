@@ -980,6 +980,76 @@ def generate_report(data, logo_path, output_path):
             )
             run.font.size = Pt(8)
 
+
+    # =====================================================================
+    # 攻击链 / 负向结论 / 跨 Agent 冲突
+    # =====================================================================
+    chains = data.get('chains') or []
+    exclusions = data.get('exclusions') or []
+    contradictions = data.get('contradictions') or []
+    role_cn = {'entry': '入口', 'pivot': '跳板', 'escalation': '升级', 'payload': '载荷', 'exfil': '外传'}
+    verdict_cn = {'not_vulnerable': '已排除', 'out_of_scope': '超出范围', 'blocked': '受阻未验'}
+
+    section_no = 2  # 一、执行摘要 / 二、漏洞详情
+    if chains or exclusions or contradictions:
+        doc.add_page_break()
+
+    if chains:
+        section_no += 1
+        add_heading_custom(doc, f"{'一二三四五六七八九十'[section_no - 1]}、攻击链分析", level=1)
+        for chain in chains:
+            add_heading_custom(doc, f"{chain.get('chain_id','')} {chain.get('title','')}", level=2,
+                               color=COLORS['text_gray'])
+            add_paragraph_custom(doc, f"风险等级: {chain.get('severity','—')}", bold=True)
+            if chain.get('description'):
+                add_paragraph_custom(doc, chain['description'])
+            for idx, step in enumerate(chain.get('steps') or [], start=1):
+                role = role_cn.get(step.get('role',''), step.get('role',''))
+                add_paragraph_custom(
+                    doc,
+                    f"{idx}. [{role}] {step.get('finding_id','')} — {step.get('note','')}",
+                )
+
+    if exclusions:
+        if not chains:
+            doc.add_page_break()
+        section_no += 1
+        add_heading_custom(doc, f"{'一二三四五六七八九十'[section_no - 1]}、已排除假设（负向结论）", level=1)
+        add_paragraph_custom(
+            doc,
+            '下列候选在审计被否证或降级。缺少源码级证据的排除不成立，不得计入覆盖率。',
+            color=COLORS['text_gray'],
+        )
+        table = doc.add_table(rows=1, cols=5)
+        table.style = 'Table Grid'
+        for cell, text in zip(table.rows[0].cells, ['编号', '假设', '结论', '理由', '证据']):
+            set_cell_shading(cell, COLORS['primary_cyan'][1:])
+            cell.text = text
+        for exclusion in exclusions:
+            row = table.add_row().cells
+            row[0].text = str(exclusion.get('exclusion_id', ''))
+            row[1].text = str(exclusion.get('hypothesis', ''))
+            row[2].text = verdict_cn.get(exclusion.get('verdict',''), str(exclusion.get('verdict','')))
+            row[3].text = str(exclusion.get('reason', ''))
+            row[4].text = '\n'.join(
+                f"{ev.get('file','')}:{ev.get('line','')}" for ev in (exclusion.get('evidence') or [])
+            )
+
+    if contradictions:
+        section_no += 1
+        add_heading_custom(doc, f"{'一二三四五六七八九十'[section_no - 1]}、跨 Agent 结论冲突", level=1)
+        table = doc.add_table(rows=1, cols=4)
+        table.style = 'Table Grid'
+        for cell, text in zip(table.rows[0].cells, ['编号', '冲突主题', '状态', '处理结论']):
+            set_cell_shading(cell, COLORS['primary_cyan'][1:])
+            cell.text = text
+        for contradiction in contradictions:
+            row = table.add_row().cells
+            row[0].text = str(contradiction.get('contradiction_id', ''))
+            row[1].text = str(contradiction.get('topic', ''))
+            row[2].text = '未复验' if contradiction.get('status') == 'open' else '已解决'
+            row[3].text = str(contradiction.get('resolution', ''))
+
     # =====================================================================
     # 附录
     # =====================================================================

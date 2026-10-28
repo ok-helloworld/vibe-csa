@@ -44,6 +44,15 @@ Stage 1 开始前，主流程必须先识别项目语言，并选择对应静态
 
 **必须遵循**：在开始审计前，每个静态 agent 必须先使用 `{SKILL_ROOT}/scripts/prepare_static_aegnt_result.py` 生成自己的静态审计骨架文件。
 
+**负向结论义务**：每个静态 agent 必须把"已排除/降级/不可达"的候选写入结果文件顶层的 `exclusions[]`，
+每条至少包含 `location`（file + line）、`hypothesis`、`reason`、`evidence[]`（file + line，可多条）、
+`verdict`（`not_vulnerable` / `out_of_scope` / `blocked`）。
+
+- 只把排除结论写在 `coverage_summary` 或说明文字里，视为**未完成审计**：没有证据的排除不可被复核。
+- `blocked` 用于"确实无法静态判定"的场景，必须在报告中体现为未覆盖风险。
+- 两个 agent 对同一代码位置给出相反结论时，合并脚本会自动生成 `contradictions[]` 的 `open` 项，主流程必须复验。
+
+
 示例：
 
 ```bash

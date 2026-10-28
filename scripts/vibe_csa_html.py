@@ -390,6 +390,91 @@ def build_summary(audit, findings):
 # TOC
 # ──────────────────────────────────────────────
 
+def build_governance(data):
+    """Render attack chains, negative conclusions (exclusions) and unresolved contradictions.
+
+    A security report that only lists what was found hides the more important half:
+    what was ruled out, and on what evidence.
+    """
+    chains = data.get("chains") or []
+    exclusions = data.get("exclusions") or []
+    contradictions = data.get("contradictions") or []
+    if not (chains or exclusions or contradictions):
+        return ""
+
+    role_cn = {"entry": "入口", "pivot": "跳板", "escalation": "升级", "payload": "载荷", "exfil": "外传"}
+    verdict_cn = {"not_vulnerable": "已排除", "out_of_scope": "超出范围", "blocked": "受阻未验"}
+
+    blocks = []
+    if chains:
+        items = []
+        for chain in chains:
+            steps = "".join(
+                f"<li><code>{e(step.get('finding_id', ''))}</code>"
+                f"（{e(role_cn.get(step.get('role', ''), step.get('role', '')))}）"
+                f"{e(step.get('note', ''))}</li>"
+                for step in chain.get("steps") or []
+            )
+            items.append(
+                "<div style=\"margin:10px 0 18px;padding:12px 14px;border-left:3px solid #2f6fed;background:#f7f9fc;\">"
+                f"<div style=\"font-weight:600;\">{e(chain.get('chain_id', ''))} · {e(chain.get('title', ''))}"
+                f" <span style=\"color:#b42318;\">[{e(chain.get('severity', '—'))}]</span></div>"
+                f"<div style=\"margin:6px 0;line-height:1.7;\">{e(chain.get('description', ''))}</div>"
+                f"<ul style=\"margin:4px 0 0 18px;\">{steps}</ul></div>"
+            )
+        blocks.append(
+            '<section class="sec" id="chains">'
+            '<div class="sec-hdr"><span class="sec-num">04</span><h2>攻击链分析</h2></div>'
+            + "".join(items) + "</section>"
+        )
+
+    if exclusions:
+        rows = "".join(
+            "<tr>"
+            f"<td style=\"padding:8px;border-bottom:1px solid #e5e7eb;\">{e(x.get('exclusion_id', ''))}</td>"
+            f"<td style=\"padding:8px;border-bottom:1px solid #e5e7eb;\">{e(x.get('hypothesis', ''))}</td>"
+            f"<td style=\"padding:8px;border-bottom:1px solid #e5e7eb;\">{e(verdict_cn.get(x.get('verdict', ''), x.get('verdict', '')))}</td>"
+            f"<td style=\"padding:8px;border-bottom:1px solid #e5e7eb;\">{e(x.get('reason', ''))}</td>"
+            f"<td style=\"padding:8px;border-bottom:1px solid #e5e7eb;font-family:monospace;font-size:12px;\">"
+            + "<br/>".join(e(f"{ev.get('file', '')}:{ev.get('line', '')}") for ev in (x.get("evidence") or []))
+            + "</td></tr>"
+            for x in exclusions
+        )
+        blocks.append(
+            '<section class="sec" id="exclusions">'
+            '<div class="sec-hdr"><span class="sec-num">05</span><h2>已排除假设（负向结论）</h2></div>'
+            '<p style="color:#475467;">下列候选在审计中被否证或降级。每条都必须有源码级证据，否则视为未完成审计。</p>'
+            '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+            '<thead><tr style="background:#f2f4f7;text-align:left;">'
+            '<th style="padding:8px;">编号</th><th style="padding:8px;">假设</th>'
+            '<th style="padding:8px;">结论</th><th style="padding:8px;">理由</th>'
+            '<th style="padding:8px;">证据</th></tr></thead><tbody>'
+            + rows + "</tbody></table></section>"
+        )
+
+    if contradictions:
+        rows = "".join(
+            "<tr>"
+            f"<td style=\"padding:8px;border-bottom:1px solid #e5e7eb;\">{e(c.get('contradiction_id', ''))}</td>"
+            f"<td style=\"padding:8px;border-bottom:1px solid #e5e7eb;\">{e(c.get('topic', ''))}</td>"
+            f"<td style=\"padding:8px;border-bottom:1px solid #e5e7eb;color:{'#b42318' if c.get('status') == 'open' else '#067647'};\">"
+            f"{'未复验' if c.get('status') == 'open' else '已解决'}</td>"
+            f"<td style=\"padding:8px;border-bottom:1px solid #e5e7eb;\">{e(c.get('resolution', ''))}</td>"
+            "</tr>"
+            for c in contradictions
+        )
+        blocks.append(
+            '<section class="sec" id="contradictions">'
+            '<div class="sec-hdr"><span class="sec-num">06</span><h2>跨 Agent 结论冲突</h2></div>'
+            '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+            '<thead><tr style="background:#f2f4f7;text-align:left;">'
+            '<th style="padding:8px;">编号</th><th style="padding:8px;">冲突主题</th>'
+            '<th style="padding:8px;">状态</th><th style="padding:8px;">处理结论</th>'
+            '</tr></thead><tbody>' + rows + "</tbody></table></section>"
+        )
+    return "\n".join(blocks)
+
+
 def build_toc(findings):
     rows = ""
     for f in findings:
@@ -1498,6 +1583,7 @@ def build_html(data):
     <div class="sec-hdr"><span class="sec-num">03</span><h2>漏洞详情</h2></div>
     {findings_html}
   </section>
+  {build_governance(data)}
 
   <footer class="footer">
     <span>本报告由 <strong>vibe-csa</strong> 自动审计系统生成</span>
